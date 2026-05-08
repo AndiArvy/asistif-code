@@ -1288,5 +1288,30 @@
     "text": "Layar remote menunjukkan waktu, bukan suhu. Tombol untuk mengatur suhu tidak tersedia di remote ini.",
     "filename": "13c41cbe863d084cec54b329adfe715f.mp3",
     "hash": "13c41cbe863d084cec54b329adfe715f"
+  },
+  "1de1951a14e8c4fc6340e3d46d765a63": {
+    "text": "Remote terlalu dekat, tolong jauhkan sedikit.",
+    "filename": "1de1951a14e8c4fc6340e3d46d765a63.mp3",
+    "hash": "1de1951a14e8c4fc6340e3d46d765a63"
+  },
+  "b35972576b16f4bfe1c8f82fb627131b": {
+    "text": "Maaf, saya tidak mengerti perintah tersebut. Silakan gunakan tombol yang tersedia pada remote AC untuk mengontrol perangkat.",
+    "filename": "b35972576b16f4bfe1c8f82fb627131b.mp3",
+    "hash": "b35972576b16f4bfe1c8f82fb627131b"
+  },
+  "b7b9a4c4f8cee9a3561826a6aafafd05": {
+    "text": "Halo. Ada yang bisa saya bantu dengan remote AC ini?",
+    "filename": "b7b9a4c4f8cee9a3561826a6aafafd05.mp3",
+    "hash": "b7b9a4c4f8cee9a3561826a6aafafd05"
+  },
+  "204b3ba9f5610491050b4bc69b0696bd": {
+    "text": "Remote terlihat. Tahan sebentar...",
+    "filename": "204b3ba9f5610491050b4bc69b0696bd.mp3",
+    "hash": "204b3ba9f5610491050b4bc69b0696bd"
+  },
+  "19877e3234fb6df6caaf38a1136c3b86": {
+    "text": "Terlalu jauh. Dekatkan sedikit.",
+    "filename": "19877e3234fb6df6caaf38a1136c3b86.mp3",
+    "hash": "19877e3234fb6df6caaf38a1136c3b86"
   }
 }
