@@ -1,0 +1,397 @@
+<!DOCTYPE html>
+<html>
+
+<head>
+    <title>Asistif Tunanetra WebRTC</title>
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <style>
+        * {
+            box-sizing: border-box;
+        }
+
+        body {
+            background: #111;
+            color: #fff;
+            font-family: sans-serif;
+            margin: 0;
+            padding: 15px;
+            display: flex;
+            flex-direction: column;
+            height: 100vh;
+            /* overflow: hidden; */
+        }
+
+        h3 {
+            text-align: center;
+            margin-top: 0;
+            margin-bottom: 15px;
+            font-size: 18px;
+        }
+
+        .top-panel {
+            display: flex; 
+            gap: 15px;
+            margin-bottom: 15px;
+            /* flex-shrink: 0; */
+        }
+
+        #localVideo {
+            width: 120px;
+            height: 160px;
+            background: #000;
+            object-fit: cover;
+            border-radius: 8px;
+            border: 1px solid #333;
+        }
+
+        .controls {
+            display: flex;
+            flex-direction: column;
+            justify-content: center;
+            gap: 12px;
+            flex: 1;
+        }
+
+        .controls button {
+            background: #2a2a2a;
+            color: #fff;
+            border: 1px solid #444;
+            border-radius: 8px;
+            padding: 14px 10px;
+            font-size: 14px;
+            cursor: pointer;
+            width: 100%;
+        }
+
+        .controls button:disabled {
+            opacity: 0.5;
+            cursor: not-allowed;
+        }
+
+        #micStatus {
+            text-align: center;
+            font-weight: bold;
+            padding: 10px;
+            background: #1a1a1a;
+            border-radius: 8px;
+            margin-bottom: 10px;
+            border: 1px solid #333;
+            color: #00e676;
+        }
+
+        #chatLog {
+            flex: 1;
+            overflow-y: auto;
+            min-height: 0;
+            /* background: #222;
+            padding: 12px;
+            border-radius: 8px;
+            font-size: 14px;
+            border: 1px solid #333; */
+        }
+
+        .user-msg {
+            color: #4da6ff;
+            margin-bottom: 8px;
+        }
+
+        .ai-msg {
+            color: #00e676;
+            margin-bottom: 8px;
+        }
+
+        .system-msg {
+            color: #ffeb3b;
+            font-style: italic;
+            margin-bottom: 8px;
+        }
+    </style>
+</head>
+
+<body>
+    <h3>Sistem Asistif Aktif</h3>
+
+    <div class="top-panel">
+        <video id="localVideo" autoplay playsinline muted></video>
+        <div class="controls">
+            <button id="switchCameraBtn" type="button">Ganti Kamera</button>
+            <button id="torchBtn" type="button">Flashlight: OFF</button>
+            <div id="micStatus">🎤 Mic: AKTIF (Silakan Bicara)</div>
+        </div>
+    </div>
+
+    <audio id="remoteAudio" autoplay></audio>
+
+    
+    <div id="chatLog">
+        <div class="system-msg">[Sistem]: Menunggu koneksi...</div>
+    </div>
+
+    <script>
+        let pc = null;
+        let localStream = null;
+        let audioSender = null;
+        let videoSender = null;
+        let currentFacingMode = "environment";
+        let torchEnabled = false;
+        let activeTtsPlaybackCount = 0;
+        // Buat SATU player permanen
+        const ttsPlayer = new Audio();
+        let isTtsPlaying = false;
+
+        // Pasang event listener cukup satu kali saja di sini
+        ttsPlayer.onended = () => {
+            isTtsPlaying = false;
+            handleTtsEnd();
+        };
+
+        ttsPlayer.onerror = () => {
+            isTtsPlaying = false;
+            handleTtsEnd();
+        };
+
+        const chatLog = document.getElementById('chatLog');
+        const localVideo = document.getElementById('localVideo');
+        const switchCameraBtn = document.getElementById('switchCameraBtn');
+        const torchBtn = document.getElementById('torchBtn');
+        const micUI = document.getElementById('micStatus');
+
+        function setMicEnabled(enabled) {
+            if (!localStream) return;
+            const micTrack = localStream.getAudioTracks()[0];
+            if (micTrack) micTrack.enabled = enabled;
+
+            if (micUI) {
+                if (enabled) {
+                    micUI.innerText = "🎤 Mic: AKTIF";
+                    micUI.style.color = "#00e676";
+                } else {
+                    micUI.innerText = "⏳ Mic: MATI";
+                    micUI.style.color = "#ffeb3b";
+                }
+            }
+        }
+
+        function handleTtsStart() {
+            activeTtsPlaybackCount += 1;
+            setMicEnabled(false);
+        }
+
+        function handleTtsEnd() {
+            activeTtsPlaybackCount = Math.max(0, activeTtsPlaybackCount - 1);
+            if (activeTtsPlaybackCount === 0) {
+                setMicEnabled(true);
+            }
+        }
+
+        function addLog(sender, text, className) {
+            const div = document.createElement('div');
+            div.className = className;
+            div.innerText = `[${sender}]: ${text}`;
+            chatLog.appendChild(div);
+            chatLog.scrollTo({
+                top: chatLog.scrollHeight,
+                behavior: "smooth"
+            });
+        }
+
+        const wsUrl = `ws://${window.location.host}/frontend_ws`;
+        const wsFrontend = new WebSocket(wsUrl);
+
+        wsFrontend.onmessage = function (event) {
+            const data = JSON.parse(event.data);
+
+            if (data.type === "audio") {
+                // 1. Jika masih ada suara yang mengoceh, HENTIKAN PAKSA SEKARANG JUGA!
+                if (isTtsPlaying) {
+                    ttsPlayer.pause();
+                    handleTtsEnd(); // Lepaskan status mic dari suara lama
+                }
+
+                // 2. Set status menjadi memutar
+                isTtsPlaying = true;
+
+                // 3. Timpa "kaset" dengan file audio yang baru masuk
+                ttsPlayer.src = "data:audio/mp3;base64," + data.audio;
+                
+                handleTtsStart();
+                
+                // 4. Mainkan!
+                ttsPlayer.play().catch((err) => {
+                    // Abaikan "AbortError". Error ini wajar karena kita sengaja 
+                    // men-stop paksa audio sebelumnya yang mungkin belum selesai dimuat.
+                    if (err.name !== "AbortError") {
+                        addLog("Error", "Gagal memutar audio: " + err.message, "system-msg");
+                    }
+                    isTtsPlaying = false;
+                    handleTtsEnd();
+                });
+
+                if (data.text) addLog("Sistem AI", data.text, "ai-msg");
+            }
+            else if (data.type === "log") {
+                // Mencegat sinyal kontrol dari Python
+                if (data.sender === "Control") {
+                    if (data.text === "MIC_OFF") setMicEnabled(false);
+                    if (data.text === "MIC_ON") setMicEnabled(true);
+                    return; 
+                }
+
+                // Auto-Mute
+                if (data.sender === "User") {
+                    setMicEnabled(false);
+                }
+
+                // Auto-Unmute saat error
+                if (data.sender === "Error") {
+                    setMicEnabled(true);
+                }
+
+                addLog(data.sender, data.text, data.sender === "User" ? "user-msg" : "system-msg");
+            }
+        };
+
+        function updateTorchButtonState() {
+            torchBtn.innerText = `Flashlight: ${torchEnabled ? "ON" : "OFF"}`;
+        }
+
+        async function createInitialStream() {
+            return navigator.mediaDevices.getUserMedia({
+                audio: {
+                    echoCancellation: true,
+                    noiseSuppression: true,
+                    autoGainControl: true
+                },
+                video: {
+                    facingMode: currentFacingMode,
+                    width: { ideal: 1280 },
+                    height: { ideal: 720 }
+                }
+            });
+        }
+
+        function setupPeerConnection(stream) {
+            pc = new RTCPeerConnection();
+            const audioTrack = stream.getAudioTracks()[0];
+            const videoTrack = stream.getVideoTracks()[0];
+            audioSender = pc.addTrack(audioTrack, stream);
+            videoSender = pc.addTrack(videoTrack, stream);
+        }
+
+        async function negotiateWebRTC() {
+            const offer = await pc.createOffer();
+            await pc.setLocalDescription(offer);
+
+            const response = await fetch('/offer', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({
+                    sdp: pc.localDescription.sdp,
+                    type: pc.localDescription.type
+                })
+            });
+
+            const answer = await response.json();
+            await pc.setRemoteDescription(answer);
+        }
+
+        function canToggleTorch(videoTrack) {
+            if (!videoTrack || typeof videoTrack.getCapabilities !== "function") return false;
+            const capabilities = videoTrack.getCapabilities();
+            return Boolean(capabilities && capabilities.torch);
+        }
+
+        async function switchCamera() {
+            if (!videoSender) return;
+            try {
+                currentFacingMode = currentFacingMode === "environment" ? "user" : "environment";
+
+                const newVideoStream = await navigator.mediaDevices.getUserMedia({
+                    video: {
+                        facingMode: currentFacingMode,
+                        width: { ideal: 1280 },
+                        height: { ideal: 720 }
+                    }
+                });
+                const newVideoTrack = newVideoStream.getVideoTracks()[0];
+                const oldVideoTrack = localStream.getVideoTracks()[0];
+
+                await videoSender.replaceTrack(newVideoTrack);
+                if (oldVideoTrack) oldVideoTrack.stop();
+                if (oldVideoTrack) localStream.removeTrack(oldVideoTrack);
+                localStream.addTrack(newVideoTrack);
+                localVideo.srcObject = localStream;
+
+                torchEnabled = false;
+                updateTorchButtonState();
+                torchBtn.disabled = !canToggleTorch(newVideoTrack);
+                addLog("Sistem", `Kamera aktif: ${currentFacingMode === "environment" ? "belakang" : "depan"}.`, "system-msg");
+            } catch (err) {
+                addLog("Error", "Gagal ganti kamera: " + err.message, "system-msg");
+            }
+        }
+
+        async function toggleTorch() {
+            try {
+                const videoTrack = localStream && localStream.getVideoTracks()[0];
+                if (!videoTrack) {
+                    addLog("Error", "Track video tidak ditemukan.", "system-msg");
+                    return;
+                }
+                if (!canToggleTorch(videoTrack)) {
+                    addLog("Sistem", "Perangkat/browser ini tidak mendukung flashlight.", "system-msg");
+                    return;
+                }
+
+                torchEnabled = !torchEnabled;
+                await videoTrack.applyConstraints({ advanced: [{ torch: torchEnabled }] });
+                updateTorchButtonState();
+                addLog("Sistem", `Flashlight ${torchEnabled ? "diaktifkan" : "dimatikan"}.`, "system-msg");
+            } catch (err) {
+                torchEnabled = false;
+                updateTorchButtonState();
+                addLog("Error", "Gagal toggle flashlight: " + err.message, "system-msg");
+            }
+        }
+
+        async function start() {
+            addLog("Sistem", "Meminta izin kamera & mic...", "system-msg");
+            switchCameraBtn.disabled = true;
+            torchBtn.disabled = true;
+            updateTorchButtonState();
+            try {
+                localStream = await createInitialStream();
+                localVideo.srcObject = localStream;
+
+                setupPeerConnection(localStream);
+                await negotiateWebRTC();
+
+                switchCameraBtn.disabled = false;
+                const videoTrack = localStream.getVideoTracks()[0];
+                torchBtn.disabled = !canToggleTorch(videoTrack);
+                addLog("Sistem", "Koneksi WebRTC Berhasil!", "system-msg");
+                
+                fetch('/trigger_tts', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ text: "Letakkan  dan tunjukkan remote di depan kamera untuk pengambilan layout" })
+                });
+            } catch (err) {
+                addLog("Error", "Gagal akses kamera/mic: " + err.message, "system-msg");
+            }
+        }
+
+        // Fitur aksesibilitas  layar
+        // document.body.addEventListener('click', (e) => {
+        //     if (e.target.tagName === 'BUTTON') return;
+        //     fetch('/manual_trigger', { method: 'POST' });
+        // });
+
+        switchCameraBtn.addEventListener("click", switchCamera);
+        torchBtn.addEventListener("click", toggleTorch);
+
+        window.onload = start;
+    </script>
+</body>
+
+</html>
