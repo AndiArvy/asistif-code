@@ -13,6 +13,7 @@ import json
 from tts_cache import get_tts_cache
 global system_is_busy
 system_is_busy = False
+http_session = requests.Session()
 
 # --- IMPORT LOGIKA VLM DARI FILE TERPISAH ---
 import vision_reasoning as vision_reasoning
@@ -55,9 +56,10 @@ async def send_log_async(text_result):
     """Mengirim log ke server secara background (non-blocking)"""
     try:
         await asyncio.to_thread(
-            requests.post,
+            http_session.post,
             "http://localhost:8080/send_log",
-            json={"sender": "User", "text": text_result}
+            json={"sender": "User", "text": text_result},
+            timeout=2,
         )
     except Exception as e:
         print("Gagal kirim log:", e)
@@ -67,7 +69,7 @@ async def preload_tts_async():
     """Preload TTS cache ke server secara background (non-blocking)"""
     try:
         await asyncio.to_thread(
-            requests.post,
+            http_session.post,
             "http://localhost:8080/preload_tts",
             timeout=30
         )

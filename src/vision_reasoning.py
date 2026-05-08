@@ -1,6 +1,4 @@
 import cv2
-import base64
-import requests
 import re
 import json
 import numpy as np
@@ -8,35 +6,32 @@ import torch
 import threading
 import time
 from PIL import Image, ImageDraw, ImageFont
-from ultralytics import YOLO
-from transformers import Owlv2Processor, Owlv2ForObjectDetection
 from rotate_remote import process_yolo_rotation
-from tts_cache import get_tts_cache
+from vision_models import get_vision_models
+from vision_http import (
+    LM_STUDIO_URL,
+    LOG_URL,
+    safe_post as _safe_post,
+    fire_and_forget_post as _fire_and_forget_post,
+    capture_current_frame,
+    cv2_to_base64,
+    extract_json_object as _extract_json_object,
+    speak as _speak,
+)
 
-# =========================
-# KONFIGURASI ENDPOINT
-# =========================
-LM_STUDIO_URL = "http://localhost:1234/v1/chat/completions"
-VIDEO_FEED_URL = "http://localhost:8080/video_feed"
-SNAPSHOT_URL = "http://localhost:8080/snapshot"
-TTS_TRIGGER_URL = "http://localhost:8080/trigger_tts"
-LOG_URL = "http://localhost:8080/send_log"
-
-# =========================
-# INISIALISASI MODEL
-# =========================
-print("Memuat model YOLO Vision...")
-yolo_model = YOLO("best.pt")
 CLASS_ID_REMOTE = 0
 CLASS_ID_JEMPOL = 1
 
-print("Memuat model OWL-ViT...")
-owl_processor = Owlv2Processor.from_pretrained(
-    "google/owlv2-base-patch16-ensemble", use_fast=True
-)
-owl_model = Owlv2ForObjectDetection.from_pretrained(
-    "google/owlv2-base-patch16-ensemble"
-)
+yolo_model = None
+owl_processor = None
+owl_model = None
+
+
+def ensure_models_loaded():
+    global yolo_model, owl_processor, owl_model
+    if yolo_model is None or owl_processor is None or owl_model is None:
+        yolo_model, owl_processor, owl_model = get_vision_models()
+        print("Model sudah siap digunakan.")
 
 # =========================
 # VARIABEL GLOBAL (STATE)
@@ -56,119 +51,36 @@ reference_indexed_b64 = None
 reference_indexed_image_cv = None  # Simpan versi CV2 untuk digambar titik merah nanti
 layout_data = {}
 
+
+def _result_xyxy_list(result):
+    """Normalize YOLO detection outputs into xyxy integer boxes."""
+    boxes = []
+    obb = getattr(result, "obb", None)
+    if obb is not None and len(obb) > 0:
+        polys = obb.xyxyxyxy.cpu().numpy()
+        for poly in polys:
+            pts = np.array(poly).reshape(-1, 2)
+            x_coords = pts[:, 0]
+            y_coords = pts[:, 1]
+            boxes.append(
+                (
+                    int(np.min(x_coords)),
+                    int(np.min(y_coords)),
+                    int(np.max(x_coords)),
+                    int(np.max(y_coords)),
+                )
+            )
+        return boxes
+
+    axis_boxes = getattr(result, "boxes", None)
+    if axis_boxes is not None and len(axis_boxes) > 0:
+        for box in axis_boxes:
+            boxes.append(tuple(map(int, box.xyxy[0].cpu().numpy())))
+    return boxes
+
+
 def is_similar(word, keywords):
     return any(k in word or word in k for k in keywords)
-
-def _safe_post(url, **kwargs):
-    """Gunakan ini HANYA untuk VLM (LM Studio) karena kita butuh return value-nya"""
-    try:
-        return requests.post(url, timeout=kwargs.pop("timeout", 15), **kwargs)
-    except Exception as e:
-        print(f"[Warning] POST gagal ke {url}: {e}")
-        return None
-
-def _background_post_worker(url, kwargs):
-    """Pekerja di balik layar untuk mengirim HTTP request"""
-    try:
-        # Timeout diset kecil karena kita cuma ngirim log/trigger
-        requests.post(url, timeout=kwargs.pop("timeout", 5), **kwargs)
-    except Exception as e:
-        pass # Abaikan error log agar terminal tidak kotor
-
-def _fire_and_forget_post(url, **kwargs):
-    """Gunakan ini untuk Log, TTS, dan Sinyal Control (Non-Blocking)"""
-    thread = threading.Thread(target=_background_post_worker, args=(url, kwargs))
-    thread.daemon = True # Thread akan otomatis mati jika program utama mati
-    thread.start()
-
-
-def capture_current_frame():
-    """Mengambil 1 frame secara instan menggunakan endpoint snapshot"""
-    try:
-        response = requests.get(SNAPSHOT_URL, timeout=2)
-        if response.status_code == 200:
-            # Ubah data byte gambar menjadi format yang bisa dibaca OpenCV
-            image_array = np.frombuffer(response.content, dtype=np.uint8)
-            frame = cv2.imdecode(image_array, cv2.IMREAD_COLOR)
-            return frame
-    except requests.exceptions.RequestException:
-        # Mengabaikan error koneksi agar tidak spam di log
-        pass
-    except Exception as e:
-        print(f"[Warning] Gagal decode frame: {e}")
-
-    return None
-
-
-def cv2_to_base64(image_array, target_size=(360, 640)):
-    if image_array is None or image_array.size == 0:
-        return None
-
-    target_w, target_h = target_size
-    h, w = image_array.shape[:2]
-
-    # Hitung scaling (jaga aspect ratio)
-    scale = min(target_w / w, target_h / h)
-    new_w, new_h = int(w * scale), int(h * scale)
-
-    resized = cv2.resize(image_array, (new_w, new_h), interpolation=cv2.INTER_AREA)
-
-    # Canvas putih (atau hitam sesuai kebutuhan)
-    canvas = 255 * np.ones((target_h, target_w, 3), dtype=np.uint8)
-
-    x_offset = (target_w - new_w) // 2
-    y_offset = (target_h - new_h) // 2
-
-    canvas[y_offset:y_offset+new_h, x_offset:x_offset+new_w] = resized
-
-    # Pakai PNG supaya lebih konsisten
-    success, buffer = cv2.imencode(".png", canvas)
-    if not success:
-        return None
-
-    return base64.b64encode(buffer).decode("utf-8")
-
-
-def _extract_json_object(text):
-    if not text:
-        return None
-    text = text.strip()
-    try:
-        return json.loads(text)
-    except Exception:
-        pass
-    start_idx = text.find("{")
-    end_idx = text.rfind("}")
-    if start_idx != -1 and end_idx != -1 and end_idx > start_idx:
-        try:
-            return json.loads(text[start_idx : end_idx + 1])
-        except Exception:
-            return None
-    return None
-
-    
-def _speak(text):
-    """
-    Speak text using TTS with local caching support.
-    Checks cache first to avoid internet requests for repeated text.
-    """
-    try:
-        cache = get_tts_cache()
-        
-        # Check if text is already cached
-        cached_file = cache.get_cached_file(text)
-        if cached_file:
-            print(f"[TTS] Using cached audio for: {text[:50]}...")
-            # Play cached file by triggering local playback
-            _fire_and_forget_post(TTS_TRIGGER_URL, json={"text": text, "use_cache": True, "cache_file": cached_file})
-        else:
-            print(f"[TTS] Generating new audio for: {text[:50]}...")
-            # Generate new TTS and cache it
-            _fire_and_forget_post(TTS_TRIGGER_URL, json={"text": text, "use_cache": False})
-            
-    except Exception as e:
-        print(f"[TTS Cache Error] {e}, falling back to direct TTS")
-        _fire_and_forget_post(TTS_TRIGGER_URL, json={"text": text})
 
 def _log(text):
     _fire_and_forget_post(LOG_URL, json={"sender": "Sistem", "text": text})
@@ -179,6 +91,7 @@ def _log(text):
 # =========================
 def generate_owl_layout(cv2_image):
     """Mendeteksi tombol dengan OWL-ViT dan mengembalikan gambar berindeks & data kotak."""
+    ensure_models_loaded()
     # Convert CV2 (BGR) to PIL (RGB)
     color_coverted = cv2.cvtColor(cv2_image, cv2.COLOR_BGR2RGB)
     pil_img = Image.fromarray(color_coverted)
@@ -348,6 +261,7 @@ Example Output:
 def auto_setup_layout(silent=True):
     """Mencari remote, merotasi, mengindeks, dan memetakan fungsinya."""
     global is_layout_ready, reference_clean_b64, reference_indexed_b64, reference_indexed_image_cv, layout_data
+    ensure_models_loaded()
 
     # --- 1. PEMINDAIAN AWAL (Mendeteksi kehadiran remote) ---
     frame = capture_current_frame()
@@ -372,7 +286,6 @@ def auto_setup_layout(silent=True):
         
             
         outputs_stabil = process_yolo_rotation(frame_stabil, yolo_model, target_class=CLASS_ID_REMOTE)
-        cv2.imwrite("debug_cropped.jpg", outputs_stabil)
         remote_crop = outputs_stabil[0]["image"] if outputs_stabil else None
         
         if remote_crop is None:
@@ -397,9 +310,9 @@ def auto_setup_layout(silent=True):
         
         # Cek bounding box remote dari YOLO di frame asli
         results_margin_check = yolo_model(frame_stabil, classes=[CLASS_ID_REMOTE], verbose=False)
-        if len(results_margin_check[0].boxes) > 0:
-            for box in results_margin_check[0].boxes:
-                x1, y1, x2, y2 = map(int, box.xyxy[0].cpu().numpy())
+        margin_boxes = _result_xyxy_list(results_margin_check[0])
+        if margin_boxes:
+            for x1, y1, x2, y2 in margin_boxes:
                 
                 # Cek tiap sisi frame dan kumpulkan sisi mana yang terpotong
                 clipped_sides = []
@@ -540,6 +453,7 @@ def is_target_matched(touched_fungsi, current_task):
 
 def detect_current_thumb_touch(write_debug=False):
     """Ambil frame terbaru, rotate remote, deteksi jempol, lalu map ke fungsi tombol."""
+    ensure_models_loaded()
     if not is_layout_ready or reference_indexed_image_cv is None:
         return {
             "current_touched_fungsi": "tidak ada",
@@ -572,8 +486,9 @@ def detect_current_thumb_touch(write_debug=False):
         current_remote_crop, classes=[CLASS_ID_JEMPOL], verbose=False
     )
     thumb_center = None
-    if len(jempol_results[0].boxes) > 0:
-        bx1, by1, bx2, by2 = map(int, jempol_results[0].boxes[0].xyxy[0].cpu().numpy())
+    thumb_boxes = _result_xyxy_list(jempol_results[0])
+    if thumb_boxes:
+        bx1, by1, bx2, by2 = thumb_boxes[0]
         thumb_center = ((bx1 + bx2) // 2, (by1 + by2) // 2)
 
     current_drawn_cv = current_remote_crop.copy()
