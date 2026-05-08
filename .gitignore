@@ -1,2 +1,4 @@
 debug_*.jpg
 layout.json
+__pycache__/
+.vscode/
