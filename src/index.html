@@ -138,6 +138,7 @@
         // Buat SATU player permanen
         const ttsPlayer = new Audio();
         let isTtsPlaying = false;
+        const defaultTtsPlaybackRate = 1.2;
 
         // Pasang event listener cukup satu kali saja di sini
         ttsPlayer.onended = () => {
@@ -213,6 +214,8 @@
 
                 // 3. Timpa "kaset" dengan file audio yang baru masuk
                 ttsPlayer.src = "data:audio/mp3;base64," + data.audio;
+                const rate = Number(data.playback_rate);
+                ttsPlayer.playbackRate = Number.isFinite(rate) && rate > 0 ? rate : defaultTtsPlaybackRate;
                 
                 handleTtsStart();
                 
