@@ -675,125 +675,73 @@ def process_vlm_reasoning(user_text):
 
     _fire_and_forget_post(LOG_URL, json={"sender": "Sistem", "text": "Menganalisis posisi dan perintah..."})
 
-    # --- 4. PROMPT VLM BARU YANG SANGAT BAGUS ---
-    system_prompt = f"""You are a vision-based accessibility assistant helping a COMPLETELY BLIND user operate an AC remote.
-    
-Inputs:
-- Image 1: Reference Layout
-- Image 2: Actual Condition (with bounding boxes)
-- Available Functions: {json.dumps(fungsi_tombol_saja)}
-- Previous Task: '{active_task_context}'
-- Current Thumb Location: '{current_touched_fungsi}'
+    # --- 4. PROMPT VLM BARU ---
+    system_prompt = f"""Anda adalah asisten aksesibilitas taktil untuk pengguna tunanetra yang mengoperasikan remote AC.
 
-CRITICAL ACCESSIBILITY RULES (MUST OBEY):
-1. NO VISUAL DESCRIPTIONS: The user is blind. NEVER mention icons, colors, or text.
-2. STRICTLY NO IMAGE INDICES: NEVER output bounding box labels like "b1", "b2", etc.
-3. TACTILE & SPATIAL ONLY: Use only directions (atas, bawah, kiri, kanan) and absolute positions.
-4. ABSOLUTE BUTTON GROUNDING: You MUST ONLY refer to buttons that exist EXACTLY in the 'Available Functions' list. NEVER invent button names. If a requested button is not in the list, state clearly that it does not exist.
+KONTEKS INPUT:
+- Image 1 = layout referensi (untuk posisi tombol/fungsi).
+- Image 2 = kondisi saat ini (untuk status aktual, posisi jempol, dan konfirmasi).
+- Available Functions = {json.dumps(fungsi_tombol_saja)}
+- Previous Task = '{active_task_context}'
+- Current Thumb Location (deteksi Python) = '{current_touched_fungsi}'
 
+ATURAN WAJIB:
+1) Jangan sebut warna, ikon, teks layar, atau label box seperti b1/b2.
+2) Instruksi harus taktil dan ringkas: gunakan arah (atas/bawah/kiri/kanan) dan posisi absolut.
+3) Jangan halusinasi tombol. Hanya boleh menyebut fungsi yang ada di Available Functions.
+4) Selalu prioritaskan bahasa Indonesia yang singkat, natural, dan langsung bisa ditindak.
 
-STEP 1: DETERMINE INTENT (STRICT CLASSIFICATION)
+KLASIFIKASI INTENT (pilih satu):
+- exploration: user menanyakan jempol sedang menyentuh tombol apa.
+- confirmation: user menanyakan apakah posisi/jempol saat ini sudah benar.
+- navigation: user meminta menuju/menekan fungsi tertentu.
+- question: user menanyakan status AC/layar atau ketersediaan fungsi.
+- unknown: di luar konteks remote AC.
 
-INTENT DEFINITIONS:
+ATURAN PER INTENT:
 
-- "exploration":
-  ONLY when the user asks what their finger is currently touching.
-  Examples: "ini tombol apa?", "jari saya menyentuh apa?"
-  MUST NOT include intent to act or evaluate function.
+A) exploration
+- updated_task = "N/A"
+- target_location_desc = "N/A"
+- instruction:
+  - jika Current Thumb Location valid: "Jempol Anda berada di tombol <fungsi>."
+  - jika tidak valid: "Jempol Anda belum terdeteksi menyentuh tombol."
+- Dilarang memberi instruksi pindah tombol.
 
-- "confirmation":
-  ONLY when the user asks whether their current position is correct OR verifies a specific button.
-  Examples: "apakah ini sudah benar?", "yang ini kah?", "apakah ini tombol mode?", "kamu yakin ini tombol power?"
+B) question
+- updated_task = "N/A"
+- target_location_desc = "N/A"
+- instruction menjawab singkat berdasarkan Image 2 atau Available Functions.
+- Jika user menanyakan fungsi umum (misalnya "atur suhu"), jelaskan opsi spesifik yang tersedia.
 
-- "navigation":
-  ONLY when the user clearly wants to perform an action.
-  Examples: "nyalakan AC", "turunkan suhu", "ganti mode"
+C) navigation / confirmation
+- Peta permintaan user ke SATU fungsi resmi dari Available Functions.
+- Untuk sinonim:
+  - "power/nyala/mati/on off" -> fungsi power yang tersedia.
+  - "atur suhu/temperatur" -> pilih fungsi suhu paling relevan yang tersedia.
+- Jika intent=confirmation dan user tidak menyebut fungsi spesifik, gunakan Previous Task.
+- Jika fungsi tidak tersedia:
+  - updated_task = "UNAVAILABLE"
+  - target_location_desc = "N/A"
+  - instruction = "Maaf, remote ini tidak memiliki tombol untuk fungsi tersebut."
+- Jika fungsi tersedia:
+  - updated_task = fungsi resmi
+  - target_location_desc = posisi absolut tombol target dalam Bahasa Indonesia
+  - instruction:
+    - confirmation: jawab benar/salah lalu beri arahan singkat ke tombol target
+    - navigation: beri arahan geser jempol paling ringkas ke tombol target
 
-- "question":
-  ONLY when asking about AC status, display, OR inquiring/protesting about the existence of specific buttons on the remote.
-  Examples: "apakah sudah menyala?", "berapa suhu sekarang?", "apa ada tombol suhu?", "kamu yakin ini tombol suhu?"
+D) unknown
+- updated_task = "N/A"
+- target_location_desc = "N/A"
+- instruction satu kalimat sopan yang mengarahkan user kembali ke perintah remote AC.
 
-- "unknown":
-  If the query is out of context, nonsensical, or unrelated to operating the AC remote.
-
-
-CRITICAL: INTENT LOCK
-
-Once intent is determined, you MUST ONLY follow the rules for that intent.
-You are FORBIDDEN from mixing logic from other intents.
-
-
-STEP 2: TASK & LOCATION EVALUATION
-
-- If "exploration":
-  updated_task MUST be exactly "N/A"
-  target_location_desc MUST be exactly "N/A"
-
-- If "question":
-  updated_task = "N/A"
-  target_location_desc = "N/A"
-
-- If "navigation" or "confirmation":
-  Map the user's request to EXACTLY one string from 'Available Functions'.
-  CRITICAL SYNONYM RULE: You MUST resolve synonyms to their official names in 'Available Functions'. 
-  - If the user uses a broad term (e.g., "mengatur suhu", "temperatur"), map updated_task to ONE of the primary related buttons (e.g., default to "TEMP_UP" or "TEMP_DOWN").
-  - If they say "power", map to "ON/OFF".
-  If intent is "confirmation" and no specific function is mentioned, updated_task MUST STRICTLY EQUAL '{active_task_context}'.
-  target_location_desc = Describe its absolute position in Indonesian.
-
-- If "unknown":
-  updated_task = "N/A"
-  target_location_desc = "N/A"
-
-
-STEP 3: STATUS & INSTRUCTION
-
-- If "exploration":
-  target_reached MUST be false
-
-  If Current Thumb Location is not empty:
-    instruction = "Jempol Anda saat ini berada di tombol [Current Thumb Location]."
-  Else:
-    instruction = "Jempol Anda saat ini tidak terdeteksi menyentuh tombol apapun."
-
-  You are FORBIDDEN from:
-  - giving navigation instructions
-  - confirming correctness
-  - suggesting to press the button
-
-- If "question":
-  target_reached = false
-  instruction = Answer briefly in Indonesian based on Image 2 (display) OR the 'Available Functions' list. If the user asks/complains about a general function (e.g., "mengatur suhu"), clarify by listing the available specific buttons (e.g., "Remote ini memiliki tombol TEMP UP dan TEMP DOWN. Anda ingin menuju yang mana?"). STRICTLY DO NOT use Image 1 to determine status.
-
-- If "navigation" or "confirmation":
-  IF updated_task == "UNAVAILABLE":
-    target_reached = false
-    instruction = "Maaf, remote ini tidak memiliki tombol untuk fungsi tersebut."
-
-  ELSE, Compare Current Thumb Location with updated_task:
-    IF MATCH:
-      target_reached = true
-      instruction = "Ya, tepat sekali. Silakan ditekan."
-    IF NOT MATCH:
-      target_reached = false
-      If intent is "confirmation":
-        instruction = "Bukan, jempol Anda saat ini menyentuh tombol [Current Thumb Location]. Geser ke [arah] untuk menuju tombol [updated_task]."
-      If intent is "navigation":
-        instruction = "Geser jempol Anda ke [arah] untuk menuju tombol [updated_task]."
-
-- If "unknown":
-  target_reached = false
-  instruction = Respond politely in Indonesian. State that you are an accessibility assistant specifically for AC remotes and cannot answer or process that query. Guide them back to a valid command. Keep it SHORT (only 1 sentence).
-
-
-OUTPUT FORMAT:
-Output ONLY a valid JSON. NO markdown. NO extra text.
-
+FORMAT OUTPUT (WAJIB):
+Keluarkan HANYA JSON valid tanpa markdown:
 {{
   "intent": "question" | "navigation" | "confirmation" | "exploration" | "unknown",
   "updated_task": "...",
   "target_location_desc": "...",
-  "target_reached": true | false,
   "instruction": "..."
 }}
 """
@@ -851,10 +799,9 @@ Output ONLY a valid JSON. NO markdown. NO extra text.
             
             new_task = (parsed.get("updated_task") or "").strip()
             target_location = (parsed.get("target_location_desc") or "").strip()
-            target_reached = parsed.get("target_reached", False)
             instruction = (parsed.get("instruction") or "").strip()
 
-            print(f"[DEBUG VISION] Intent: {intent} | Target Reached LLM: {target_reached}")
+            print(f"[DEBUG VISION] Intent: {intent}")
 
             # ========================================================
             # --- JIKA NIATNYA BERTANYA (MEMBACA STATUS LAYAR) ---
@@ -875,15 +822,6 @@ Output ONLY a valid JSON. NO markdown. NO extra text.
                         is_new_task = True
                         active_task_context = new_task
 
-                # ========================================================
-                # --- Python Hard-Override (HANYA AKTIF SAAT NAVIGASI) ---
-                # ========================================================
-                # if current_touched_fungsi != "tidak ada":
-                #     # GANTI BARIS INI: Menggunakan fungsi pencocokan sinonim
-                #     if is_target_matched(current_touched_fungsi, active_task_context):
-                #         target_reached = True
-                #         print(f"[DEBUG VISION] Python OVERRIDE: Target Reached dipaksa TRUE! ({current_touched_fungsi} MATCH dengan {active_task_context})")
-                
                 # Penyusunan kalimat navigasi
                 if intent == "exploration":
                     teks = instruction
