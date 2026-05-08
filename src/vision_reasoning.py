@@ -273,7 +273,7 @@ def auto_setup_layout(silent=True):
     if outputs and outputs[0]["image"] is not None:
         # --- 2. FASE STABILISASI (Mencegah Blur & Menunggu Autofocus) ---
         _fire_and_forget_post(LOG_URL, json={"sender": "Control", "text": "MIC_OFF"})
-        _speak("Remote terlihat. Tahan posisi Anda sebentar...")
+        _speak("Remote terlihat. Tahan sebentar...")
         
         # Jeda 2 detik. Karena dipanggil via asyncio.to_thread, ini tidak akan membuat server WebRTC crash.
         time.sleep(2.0) 
@@ -299,7 +299,7 @@ def auto_setup_layout(silent=True):
         luas_area = tinggi * lebar
         
         if luas_area < 40000: # Threshold luas (bisa disesuaikan nanti)
-            _speak("Remote terlalu jauh. Tolong dekatkan sedikit.")
+            _speak("Terlalu jauh. Dekatkan sedikit.")
             _fire_and_forget_post(LOG_URL, json={"sender": "Control", "text": "MIC_ON"})
             return False
         _fire_and_forget_post(LOG_URL, json={"sender": "Control", "text": "MIC_OFF"})
@@ -330,10 +330,10 @@ def auto_setup_layout(silent=True):
                     if len(clipped_sides) == 1:
                         # Hanya satu sisi terpotong, bilang sisi mana
                         sisi = clipped_sides[0]
-                        message = f"Remote terpotong bagian {sisi}. Jauhkan sedikit."
+                        message = f"bagian {sisi} terpotong."
                     else:
                         # Lebih dari satu sisi terpotong, bilang generic
-                        message = "Remote terlalu dekat, tolong jauhkan sedikit."
+                        message = "Terlalu dekat, Jauhkan sedikit."
                     
                     _speak(message)
                     _fire_and_forget_post(LOG_URL, json={"sender": "Control", "text": "MIC_ON"})
@@ -362,7 +362,7 @@ def auto_setup_layout(silent=True):
         is_layout_ready = True
 
         _speak("Pemetaan remote berhasil. Mau saya bantu apa?")
-        _fire_and_forget_post(LOG_URL, json={"sender": "Control", "text": "MIC_ON"})
+        _fire_and_forget_post(LOG_URL, json={"sender": "Control", "text": "MIC_OFF"})
 
         return True
 
