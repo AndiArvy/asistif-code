@@ -19,6 +19,7 @@ pcs = set()  # Menyimpan koneksi WebRTC aktif
 latest_jpeg = None  # Menyimpan frame video terakhir
 audio_clients = set()  # Menyimpan client Python yang mendengarkan audio
 tts_cache = get_tts_cache()  # Initialize TTS cache
+TTS_PLAYBACK_RATE = float(os.getenv("TTS_PLAYBACK_RATE", "1.2"))
 
 
 # --- 1. RUTE HALAMAN UTAMA (UI HP) ---
@@ -215,7 +216,14 @@ async def trigger_tts(request):
         if audio_b64:
             for ws in list(frontend_clients):
                 try:
-                    await ws.send_json({"type": "audio", "audio": audio_b64, "text": teks})
+                    await ws.send_json(
+                        {
+                            "type": "audio",
+                            "audio": audio_b64,
+                            "text": teks,
+                            "playback_rate": TTS_PLAYBACK_RATE,
+                        }
+                    )
                 except Exception as e:
                     print(f"[TTS] Error sending to client: {e}")
 
