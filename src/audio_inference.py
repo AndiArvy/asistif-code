@@ -33,7 +33,7 @@ print("Memuat model visual...")
 print("Sistem siap menerima perintah!")
 
 # --- PENGATURAN DETEKSI KALIMAT (VAD) ---
-SILENCE_THRESHOLD = int(os.getenv("SILENCE_THRESHOLD", "3000"))
+SILENCE_THRESHOLD = int(os.getenv("SILENCE_THRESHOLD", "5000"))
 # Nilai 50 sering memicu jeda panjang. Turunkan agar kalimat diproses lebih cepat.
 SILENCE_CHUNKS_LIMIT = int(os.getenv("SILENCE_CHUNKS_LIMIT", "20"))
 
