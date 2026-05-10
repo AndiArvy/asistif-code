@@ -400,30 +400,57 @@ def _match_task_texts(touched_fungsi, current_task):
         return True
         
     # --- GUARD CLAUSE KHUSUS TIMER & WAKTU ---
-    # Kumpulkan semua kata kunci yang bisa mengubah makna "on/off/nyala/mati" menjadi fitur timer
-    timer_keywords = ["timer", "waktu"]
-    
-    # Cek apakah masing-masing teks mengandung unsur kata timer/waktu
+    timer_keywords = ["timer", "waktu", "clock", "jam"]
     t1_is_timer = any(kw in t1 for kw in timer_keywords)
     t2_is_timer = any(kw in t2 for kw in timer_keywords)
     
-    # Jika salah satu adalah tombol timer/waktu, tapi yang satunya BUKAN, langsung tolak!
     if t1_is_timer != t2_is_timer:
         return False
 
-    # 2. Cek Sinonim / Alias khusus Remote AC
+    # 2. Cek Sinonim / Alias (Sudah disesuaikan dengan JSON Layout)
     synonym_groups = [
-        ["power", "on/off", "on", "off", "nyala", "mati", "nyala/mati"],
-        ["temp up", "suhu naik", "naikkan", "up", "tambah", "panas", "temperature", "temp"],
-        ["temp down", "suhu turun", "turunkan", "down", "kurang", "dingin", "temperature", "temp"],
-        ["fan", "kipas", "angin", "kecepatan", "speed", "wind"],
+        # B1, B2: Power & LED
+        ["power", "on/off", "on", "off", "nyala", "mati", "nyala/mati", "hidup"],
+        
+        # B4: Suhu Naik (Hapus kata "temp" tunggal agar tidak overlap dengan suhu turun)
+        ["suhu naik", "temp up", "temp_up", "naikkan", "up", "tambah", "panas", "temp"],
+        
+        # B6: Suhu Turun 
+        ["suhu turun", "temp down", "temp_down", "turunkan", "down", "kurang", "dingin", "temp"],
+        
+        # B5: Fan Speed
+        ["fan", "kipas", "angin", "kecepatan", "speed", "quiet"],
+        
+        # B3: Mode
         ["mode", "cool", "dry", "heat", "auto"],
-        ["swing", "a.swing", "m.swing", "ayun", "arah angin", "swing otomatis"],
-        ["timer on", "timer nyala", "waktu nyala", "waktu on"],
-        ["timer off", "timer mati", "waktu mati", "waktu off"]
+        
+        # B7: Swing
+        ["swing", "a.swing", "m.swing", "ayun", "arah angin", "air swing"],
+        
+        # B9: Timer On
+        ["timer on", "on timer", "timer nyala", "waktu nyala", "waktu on"],
+        
+        # B13: Timer Off
+        ["timer off", "off timer", "timer mati", "waktu mati", "waktu off"],
+        
+        # B10: Timer Naik
+        ["timer naik", "tambah waktu", "waktu naik"],
+        
+        # B14: Timer Turun
+        ["timer turun", "kurang waktu", "waktu turun"],
+        
+        # B11: Set
+        ["set", "atur", "konfirmasi"],
+        
+        # B12: Cancel
+        ["cancel", "batal", "batalkan"],
+        
+        # B15: Clock
+        ["clock", "jam"]
     ]
     
     def contains_word(text, word):
+        # Menggunakan regex boundary \b untuk mencocokkan kata utuh
         pattern = r'\b' + re.escape(word) + r'\b'
         return bool(re.search(pattern, text))
 
