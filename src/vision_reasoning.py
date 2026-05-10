@@ -178,7 +178,7 @@ def generate_owl_layout(cv2_image):
         # Logika teks asli Anda: Teks di posisi (x+2, y+2), dengan background hitam rectangle
         text_pos = (box[0] + 2, box[1] + 2)
         # Menghitung perkiraan area background hitam agar teks arial tidak tumpang tindih
-        draw.rectangle([text_pos, (text_pos[0] + 25, text_pos[1] + 20)], fill="black")
+        draw.rectangle([text_pos, (text_pos[0] + 30, text_pos[1] + 20)], fill="black")
         draw.text(text_pos, indeks, fill="lime", font=font)
         button_counter += 1
 
@@ -414,12 +414,11 @@ def _match_task_texts(touched_fungsi, current_task):
     # 2. Cek Sinonim / Alias khusus Remote AC
     synonym_groups = [
         ["power", "on/off", "on", "off", "nyala", "mati", "nyala/mati"],
-        ["temp up", "suhu naik", "naikkan", "up", "tambah", "panas"],
-        ["temp down", "suhu turun", "turunkan", "down", "kurang", "dingin"],
-        ["fan", "kipas", "angin", "kecepatan", "speed"],
+        ["temp up", "suhu naik", "naikkan", "up", "tambah", "panas", "temperature", "temp"],
+        ["temp down", "suhu turun", "turunkan", "down", "kurang", "dingin", "temperature", "temp"],
+        ["fan", "kipas", "angin", "kecepatan", "speed", "wind"],
         ["mode", "cool", "dry", "heat", "auto"],
         ["swing", "a.swing", "m.swing", "ayun", "arah angin", "swing otomatis"],
-        # Jangan lupa tambahkan variasi "waktu" ke dalam grup timer agar mereka bisa saling mengenali
         ["timer on", "timer nyala", "waktu nyala", "waktu on"],
         ["timer off", "timer mati", "waktu mati", "waktu off"]
     ]

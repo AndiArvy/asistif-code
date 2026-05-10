@@ -116,7 +116,7 @@
         <div class="controls">
             <button id="switchCameraBtn" type="button">Ganti Kamera</button>
             <button id="torchBtn" type="button">Flashlight: OFF</button>
-            <div id="micStatus">🎤 Mic: AKTIF (Silakan Bicara)</div>
+            <div id="micStatus">🎤 Mic: AKTIF</div>
         </div>
     </div>
 
@@ -258,19 +258,54 @@
             torchBtn.innerText = `Flashlight: ${torchEnabled ? "ON" : "OFF"}`;
         }
 
+        function getAudioConstraints() {
+            return {
+                echoCancellation: true,
+                noiseSuppression: true,
+                autoGainControl: true
+            };
+        }
+
+        function getHighVideoConstraints(facingMode) {
+            return {
+                facingMode,
+                width: { ideal: 1280 },
+                height: { ideal: 720 },
+                frameRate: { min: 10, ideal: 20 }
+            };
+        }
+
+        function getFallbackVideoConstraints(facingMode) {
+            return {
+                facingMode,
+                width: { ideal: 1280 },
+                height: { ideal: 720 }
+            };
+        }
+
+        function logVideoSettings(track, contextLabel) {
+            if (!track || typeof track.getSettings !== "function") return;
+            const settings = track.getSettings();
+            const width = settings.width || "?";
+            const height = settings.height || "?";
+            const fps = settings.frameRate || "?";
+            addLog("Sistem", `${contextLabel}: ${width}x${height} @ ${fps}fps`, "system-msg");
+        }
+
         async function createInitialStream() {
-            return navigator.mediaDevices.getUserMedia({
-                audio: {
-                    echoCancellation: true,
-                    noiseSuppression: true,
-                    autoGainControl: true
-                },
-                video: {
-                    facingMode: currentFacingMode,
-                    width: { ideal: 1280 },
-                    height: { ideal: 720 }
-                }
-            });
+            try {
+                return await navigator.mediaDevices.getUserMedia({
+                    audio: getAudioConstraints(),
+                    video: getHighVideoConstraints(currentFacingMode)
+                });
+            } catch (err) {
+                // Fallback agar tetap tersambung pada device yang tidak mampu memenuhi min 1280x720.
+                addLog("Sistem", "Mode kamera HD ketat gagal, mencoba mode kompatibel...", "system-msg");
+                return navigator.mediaDevices.getUserMedia({
+                    audio: getAudioConstraints(),
+                    video: getFallbackVideoConstraints(currentFacingMode)
+                });
+            }
         }
 
         function setupPeerConnection(stream) {
@@ -309,13 +344,17 @@
             try {
                 currentFacingMode = currentFacingMode === "environment" ? "user" : "environment";
 
-                const newVideoStream = await navigator.mediaDevices.getUserMedia({
-                    video: {
-                        facingMode: currentFacingMode,
-                        width: { ideal: 1280 },
-                        height: { ideal: 720 }
-                    }
-                });
+                let newVideoStream;
+                try {
+                    newVideoStream = await navigator.mediaDevices.getUserMedia({
+                        video: getHighVideoConstraints(currentFacingMode)
+                    });
+                } catch (err) {
+                    addLog("Sistem", "Mode kamera HD ketat gagal saat ganti kamera, pakai mode kompatibel.", "system-msg");
+                    newVideoStream = await navigator.mediaDevices.getUserMedia({
+                        video: getFallbackVideoConstraints(currentFacingMode)
+                    });
+                }
                 const newVideoTrack = newVideoStream.getVideoTracks()[0];
                 const oldVideoTrack = localStream.getVideoTracks()[0];
 
@@ -328,6 +367,7 @@
                 torchEnabled = false;
                 updateTorchButtonState();
                 torchBtn.disabled = !canToggleTorch(newVideoTrack);
+                logVideoSettings(newVideoTrack, "Resolusi kamera aktif");
                 addLog("Sistem", `Kamera aktif: ${currentFacingMode === "environment" ? "belakang" : "depan"}.`, "system-msg");
             } catch (err) {
                 addLog("Error", "Gagal ganti kamera: " + err.message, "system-msg");
@@ -365,6 +405,11 @@
             try {
                 localStream = await createInitialStream();
                 localVideo.srcObject = localStream;
+                const initialVideoTrack = localStream.getVideoTracks()[0];
+                if (initialVideoTrack) {
+                    initialVideoTrack.contentHint = "detail";
+                    logVideoSettings(initialVideoTrack, "Resolusi awal");
+                }
 
                 setupPeerConnection(localStream);
                 await negotiateWebRTC();
