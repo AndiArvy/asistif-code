@@ -252,8 +252,8 @@ async def auto_scan_layout():
             if sukses:
                 print(">>> Layout remote otomatis tertangkap dan diproses! <<<")
                 
-        # Polling setiap 2 detik (jangan terlalu cepat agar PC tidak berat)
-        await asyncio.sleep(2)
+        # Polling setiap 3 detik (jangan terlalu cepat agar PC tidak berat)
+        await asyncio.sleep(3)
 
 async def ensure_tts_cache_preloaded():
     """Ensure TTS cache is available and trigger server preload"""
