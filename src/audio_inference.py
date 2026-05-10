@@ -33,7 +33,7 @@ print("Memuat model visual...")
 print("Sistem siap menerima perintah!")
 
 # --- PENGATURAN DETEKSI KALIMAT (VAD) ---
-SILENCE_THRESHOLD = int(os.getenv("SILENCE_THRESHOLD", "5000"))
+SILENCE_THRESHOLD = int(os.getenv("SILENCE_THRESHOLD", "2000"))
 # Nilai 50 sering memicu jeda panjang. Turunkan agar kalimat diproses lebih cepat.
 SILENCE_CHUNKS_LIMIT = int(os.getenv("SILENCE_CHUNKS_LIMIT", "20"))
 
@@ -86,7 +86,7 @@ def run_whisper_transcription(audio_data):
         condition_on_previous_text=False,
         vad_filter=True,
         vad_parameters=dict(
-            min_silence_duration_ms=int(os.getenv("WHISPER_MIN_SILENCE_MS", "250"))
+            min_silence_duration_ms=int(os.getenv("WHISPER_MIN_SILENCE_MS", "500"))
         ),
         initial_prompt=(
             "Percakapan asistif navigasi remote AC: 'Tolong nyalain AC-nya, saya kepanasan. "
@@ -177,7 +177,7 @@ async def listen_to_mic():
                                 if len(segments) > 0:
                                     avg_no_speech_prob = sum(s.no_speech_prob for s in segments) / len(segments)
 
-                                    if avg_no_speech_prob > 0.6:
+                                    if avg_no_speech_prob > 0.5:
                                         print(f"(Mengabaikan noise. Probabilitas: {avg_no_speech_prob:.2f})")
                                     else:
                                         text_result = "".join([s.text for s in segments]).strip()
@@ -185,7 +185,7 @@ async def listen_to_mic():
 
                                         halusinasi = [
                                             "terima kasih", "terimakasih", "terima kasih banyak",
-                                            "terima kasih telah menonton", "terimakasih telah menonton", ""
+                                            "terima kasih telah menonton", "terimakasih telah menonton", "kembali"
                                         ]
 
                                         if clean_text not in halusinasi and text_result:

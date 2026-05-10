@@ -275,8 +275,8 @@ def auto_setup_layout(silent=True):
         _fire_and_forget_post(LOG_URL, json={"sender": "Control", "text": "MIC_OFF"})
         _speak("Remote terlihat. Tahan sebentar...")
         
-        # Jeda 4 detik. Karena dipanggil via asyncio.to_thread, ini tidak akan membuat server WebRTC crash.
-        time.sleep(4.0) 
+        # Jeda 2 detik. Karena dipanggil via asyncio.to_thread, ini tidak akan membuat server WebRTC crash.
+        time.sleep(2.0) 
         
         # --- 3. PENGAMBILAN GAMBAR UTAMA (Setelah Stabil) ---
         _fire_and_forget_post(LOG_URL, json={"sender": "Sistem", "text": "Mengambil gambar jernih..."})
@@ -676,100 +676,37 @@ def process_vlm_reasoning(user_text):
 
     # --- 4. PROMPT VLM BARU ---
     system_prompt = f"""You are a vision-based accessibility assistant helping a COMPLETELY BLIND user operate an AC remote.
-    
-Inputs:
-- Image 1: Reference Layout
-- Image 2: Actual Condition (with bounding boxes)
+
+CURRENT STATE:
 - Available Functions: {json.dumps(fungsi_tombol_saja)}
 - Previous Task: '{active_task_context}'
 - Current Thumb Location: '{current_touched_fungsi}'
 
-CRITICAL ACCESSIBILITY RULES (MUST OBEY):
-1. NO VISUAL DESCRIPTIONS: The user is blind. NEVER mention icons, colors, or text.
-2. STRICTLY NO IMAGE INDICES: NEVER output bounding box labels like "b1", "b2", etc. 
-3. TACTILE & SPATIAL ONLY: Use only directions (atas, bawah, kiri, kanan), relative distances (e.g., "satu tombol ke kanan"), and absolute positions (pojok kiri atas, dll). Keep instructions SHORT.
-4. ANSWER WITH INDONESIAN LANGUAGE ONLY.
+CRITICAL RULES (MUST OBEY):
+1. BLIND USER: NEVER tell the user to "look at", "see", or "check" the screen. NEVER tell them to touch the screen. They cannot see.
+2. READING THE SCREEN: If the user asks for temperature, mode, or status (Intent: "question"), YOU MUST READ the LCD screen strictly from 'Image 2 (Actual Current Condition)'. Do NOT use Image 1 for this. If Image 2's screen is off, blank, or unreadable, output EXACTLY: "Maaf, informasi di layar tidak terbaca oleh kamera."
+3. SPATIAL/TACTILE ONLY: Guide the user to physical buttons using only relative movements (atas, bawah, kiri, kanan) or absolute locations (pojok kiri atas). DILARANG menyebut label bounding box ("b1", "box").
+4. INDONESIAN LANGUAGE: The final 'instruction' MUST be in Indonesian.
+5. OUTPUT FORMAT: STRICTLY output a raw JSON object only. NO markdown (```json). NO extra text.
 
-==================================================
-STEP 1: DETERMINE INTENT (STRICT CLASSIFICATION)
+INTENT CATEGORIES:
+- "exploration": User touches a physical button and asks what it is.
+- "navigation": User wants to execute a command.
+- "confirmation": User asks if their current finger position is correct.
+- "question": User asks for screen info (temperature, mode, etc.).
+- "unknown": Unclear query.
 
-- "exploration": User asks what their finger is currently touching. (e.g., "ini tombol apa?")
-- "confirmation": User asks if their current position is correct based on a previous task. (e.g., "apakah ini sudah benar?")
-- "navigation": User clearly wants to perform an action. (e.g., "nyalakan AC", "turunkan suhu 2 derajat")
-- "question": User asks about AC status or display. (e.g., "berapa suhu sekarang?")
-- "unknown": Query does not clearly match any category.
+EXPECTED OUTPUT EXAMPLES (NO MARKDOWN):
 
-CRITICAL: INTENT LOCK
-Once intent is determined, strictly follow the rules for that intent. Do not mix logic.
+{{"intent": "question", "updated_task": "N/A", "target_location_desc": "N/A", "instruction": "Suhu di layar saat ini menunjukkan 24 derajat."}}
 
-==================================================
-STEP 2: TASK & LOCATION EVALUATION
+{{"intent": "question", "updated_task": "N/A", "target_location_desc": "N/A", "instruction": "Maaf, informasi di layar tidak terbaca oleh kamera."}}
 
-- If "exploration" or "question" or "unknown":
-  updated_task = "N/A"
-  target_location_desc = "N/A"
+{{"intent": "navigation", "updated_task": "power", "target_location_desc": "pojok kanan atas", "instruction": "Untuk menyalakan AC, raba tombol di pojok kanan atas."}}
 
-- If "navigation":
-  updated_task = Map request to EXACTLY one string from 'Available Functions'.
-  target_location_desc = Describe its absolute position.
+{{"intent": "confirmation", "updated_task": "temp_down", "target_location_desc": "tengah bawah", "instruction": "Bukan, itu tombol kipas. Geser jempol sedikit ke atas untuk tombol turunkan suhu."}}
 
-- If "confirmation":
-  If '{active_task_context}' is empty, "None", or "N/A":
-    Change intent to "unknown" (user has no active task to confirm).
-    updated_task = "N/A"
-    target_location_desc = "N/A"
-  Else:
-    updated_task MUST STRICTLY EQUAL '{active_task_context}'.
-    target_location_desc = Describe location of '{active_task_context}'.
-
-==================================================
-STEP 3: STATUS & INSTRUCTION
-
-- If "exploration":
-  If '{current_touched_fungsi}' contains exactly 1 function:
-    instruction = "Jempol Anda berada di tombol [Current Thumb Location]."
-  If '{current_touched_fungsi}' contains >1 function (finger between buttons):
-    instruction = "Jempol Anda berada di antara tombol [List functions]. Geser sedikit agar tepat di satu tombol."
-  If '{current_touched_fungsi}' is empty:
-    instruction = "Jempol Anda tidak terdeteksi menyentuh tombol apapun."
-
-- If "question":
-  If the AC screen is clearly readable: Answer briefly in Indonesian based ONLY on the display.
-  If the AC screen is off, blank, occluded, or unreadable: 
-    instruction = "Layar remote tidak terbaca atau dalam keadaan mati."
-
-- If "navigation" or "confirmation":
-  Compare '{current_touched_fungsi}' with updated_task:
-  
-  IF MATCH:
-    If User Query implies multiple presses (e.g., "turunkan 3 derajat"):
-      instruction = "Ya, tepat. Silakan tekan [jumlah] kali."
-    Else:
-      instruction = "Ya, tepat sekali. Silakan ditekan."
-      
-  IF NOT MATCH:
-    If '{current_touched_fungsi}' is not empty:
-      Determine relative path from '{current_touched_fungsi}' to updated_task.
-      instruction = "Geser jempol Anda ke [arah relatif, misal: kanan/atas] sejauh [perkiraan jumlah tombol/jarak] untuk menuju tombol [updated_task]." (Example: "Geser ke atas satu tombol...")
-    If '{current_touched_fungsi}' is empty:
-      instruction = "Mulai raba dari [target_location_desc] untuk mencari tombol [updated_task]."
-
-- If "unknown":
-  instruction = "Perintah tidak dikenali. Silakan sebutkan tujuan seperti 'nyalakan AC' atau 'turunkan suhu'."
-
-NEVER MENTION VISUAL ELEMENTS, INDICES, OR USE NON-TACTILE DESCRIPTIONS IN ANY INTENT. NEVER MENTION "b1", "b2", etc. or colors or shapes. ALWAYS USE FUNCTION NAMES AND TACTILE/SPATIAL LANGUAGE ONLY. AND KEEP INSTRUCTION SHORT.
-
-==================================================
-OUTPUT FORMAT:
-Output ONLY a valid JSON string. 
-CRITICAL: DO NOT wrap the output in markdown code blocks (like ```json ... ```). DO NOT include any conversational text outside the JSON structure.
-
-{{
-  "intent": "question" | "navigation" | "confirmation" | "exploration" | "unknown",
-  "updated_task": "...",
-  "target_location_desc": "...",
-  "instruction": "..."
-}}
+{{"intent": "exploration", "updated_task": "N/A", "target_location_desc": "N/A", "instruction": "Jempol Anda sedang menyentuh tombol mode."}}
 """
 
     messages_payload = [
