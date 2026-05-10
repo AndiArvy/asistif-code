@@ -690,23 +690,20 @@ CRITICAL RULES (MUST OBEY):
 5. OUTPUT FORMAT: STRICTLY output a raw JSON object only. NO markdown (```json). NO extra text.
 
 INTENT CATEGORIES:
-- "exploration": User touches a physical button and asks what it is.
-- "navigation": User wants to execute a command.
-- "confirmation": User asks if their current finger position is correct.
+- "navigation": User wants to execute a command or change a setting (e.g., "Nyalakan AC", "Turunkan suhu", "Arahkan saya ke tombol power"). THIS IS THE PRIMARY INTENT FOR ANY ACTION.
+- "confirmation": User asks if their current finger position is correct for a specific task (e.g., "Apakah jari saya sudah pas di tombol suhu?").
 - "question": User asks for screen info (temperature, mode, etc.).
-- "unknown": Unclear query.
+- "unknown": Unclear query, or not related to AC remote.
 
 EXPECTED OUTPUT EXAMPLES (NO MARKDOWN):
 
-{{"intent": "question", "updated_task": "N/A", "target_location_desc": "N/A", "instruction": "Suhu di layar saat ini menunjukkan 24 derajat."}}
-
-{{"intent": "question", "updated_task": "N/A", "target_location_desc": "N/A", "instruction": "Maaf, informasi di layar tidak terbaca oleh kamera."}}
-
 {{"intent": "navigation", "updated_task": "power", "target_location_desc": "pojok kanan atas", "instruction": "Untuk menyalakan AC, raba tombol di pojok kanan atas."}}
+
+{{"intent": "navigation", "updated_task": "temp_down", "target_location_desc": "tengah bawah", "instruction": "Untuk menurunkan suhu, geser jempol Anda ke bawah menuju bagian tengah remote."}}
 
 {{"intent": "confirmation", "updated_task": "temp_down", "target_location_desc": "tengah bawah", "instruction": "Bukan, itu tombol kipas. Geser jempol sedikit ke atas untuk tombol turunkan suhu."}}
 
-{{"intent": "exploration", "updated_task": "N/A", "target_location_desc": "N/A", "instruction": "Jempol Anda sedang menyentuh tombol mode."}}
+{{"intent": "question", "updated_task": "N/A", "target_location_desc": "N/A", "instruction": "Suhu di layar saat ini menunjukkan 24 derajat."}}
 """
 
     messages_payload = [

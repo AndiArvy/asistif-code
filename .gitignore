@@ -1,4 +1,5 @@
 debug_*.jpg
 layout.json
+ignore*
 __pycache__/
 .vscode/
