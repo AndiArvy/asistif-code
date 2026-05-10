@@ -494,10 +494,42 @@ def detect_current_thumb_touch(write_debug=False):
     reference_drawn_cv = reference_indexed_image_cv.copy()
     current_touched_fungsi = "tidak ada"
 
+    h_curr, w_curr = current_drawn_cv.shape[:2]
+    h_ref, w_ref = reference_drawn_cv.shape[:2]
+
+    # Overlay bbox + indeks tombol ke gambar terbaru agar cukup kirim 1 image ke LLM.
+    for indeks, data in layout_data.items():
+        bx, by, bw, bh = data["coords"]
+        sx = w_curr / max(w_ref, 1)
+        sy = h_curr / max(h_ref, 1)
+        x1 = int(bx * sx)
+        y1 = int(by * sy)
+        x2 = int((bx + bw) * sx)
+        y2 = int((by + bh) * sy)
+
+        cv2.rectangle(current_drawn_cv, (x1, y1), (x2, y2), (0, 255, 0), 2)
+        label_x = max(0, x1 + 2)
+        label_y = max(20, y1 + 18)
+        cv2.rectangle(
+            current_drawn_cv,
+            (label_x - 2, label_y - 16),
+            (label_x + 34, label_y + 2),
+            (0, 0, 0),
+            -1,
+        )
+        cv2.putText(
+            current_drawn_cv,
+            indeks,
+            (label_x, label_y),
+            cv2.FONT_HERSHEY_SIMPLEX,
+            0.5,
+            (0, 255, 0),
+            1,
+            cv2.LINE_AA,
+        )
+
     if thumb_center:
         cv2.circle(current_drawn_cv, thumb_center, radius=8, color=(0, 0, 255), thickness=-1)
-        h_curr, w_curr = current_drawn_cv.shape[:2]
-        h_ref, w_ref = reference_drawn_cv.shape[:2]
 
         rel_x = int((thumb_center[0] / w_curr) * w_ref)
         rel_y = int((thumb_center[1] / h_curr) * h_ref)
@@ -626,7 +658,6 @@ def process_vlm_reasoning(user_text):
     print(f"[DEBUG VISION] Python mendeteksi jempol menyentuh: {current_touched_fungsi}\n")
 
     current_guided_b64 = cv2_to_base64(current_drawn_cv)
-    reference_guided_b64 = cv2_to_base64(reference_drawn_cv)
 
     # --- DETEKSI PERTANYAAN KONFIRMASI TOMBOL ---
     CONFIRM_KEYWORDS = {"benar", "betul", "tepat", "sesuai", "cocok"}
@@ -681,18 +712,21 @@ CURRENT STATE:
 - Available Functions: {json.dumps(fungsi_tombol_saja)}
 - Previous Task: '{active_task_context}'
 - Current Thumb Location: '{current_touched_fungsi}'
+- Visual Input: ONE latest remote image with overlayed button bounding boxes and indices (b1, b2, ...), plus a red thumb marker.
 
 CRITICAL RULES (MUST OBEY):
 1. BLIND USER: NEVER tell the user to "look at", "see", or "check" the screen. NEVER tell them to touch the screen. They cannot see.
-2. READING THE SCREEN: If the user asks for temperature, mode, or status (Intent: "question"), YOU MUST READ the LCD screen strictly from 'Image 2 (Actual Current Condition)'. Do NOT use Image 1 for this. If Image 2's screen is off, blank, or unreadable, output EXACTLY: "Maaf, informasi di layar tidak terbaca oleh kamera."
-3. SPATIAL/TACTILE ONLY: Guide the user to physical buttons using only relative movements (atas, bawah, kiri, kanan) or absolute locations (pojok kiri atas). DILARANG menyebut label bounding box ("b1", "box").
-4. INDONESIAN LANGUAGE: The final 'instruction' MUST be in Indonesian.
-5. OUTPUT FORMAT: STRICTLY output a raw JSON object only. NO markdown (```json). NO extra text.
+2. SINGLE IMAGE POLICY: You only receive ONE latest image. Do not assume any second/reference image exists.
+3. READING THE SCREEN: If the user asks for temperature, mode, or status (Intent: "question"), read the LCD screen from this latest image. If the screen is off, blank, or unreadable, output EXACTLY: "Maaf, informasi di layar tidak terbaca oleh kamera."
+4. SPATIAL/TACTILE ONLY: Guide the user to physical buttons using only relative movements (atas, bawah, kiri, kanan) or absolute locations (pojok kiri atas).
+5. OVERLAY LABELS ARE INTERNAL: You may use bbox/index labels (b1, b2, ...) internally to reason, but NEVER mention labels/index/box IDs in final instruction to the user.
+6. INDONESIAN LANGUAGE: The final 'instruction' MUST be in Indonesian.
+7. OUTPUT FORMAT: STRICTLY output a raw JSON object only. NO markdown (```json). NO extra text.
 
 INTENT CATEGORIES:
 - "navigation": User wants to execute a command or change a setting (e.g., "Nyalakan AC", "Turunkan suhu", "Arahkan saya ke tombol power"). THIS IS THE PRIMARY INTENT FOR ANY ACTION.
 - "confirmation": User asks if their current finger position is correct for a specific task (e.g., "Apakah jari saya sudah pas di tombol suhu?").
-- "question": User asks for screen info (temperature, mode, etc.).
+- "question": User asks for screen info (temperature, mode, etc.), or asking about the button they are touching (e.g., "Ini tombol apa ya?").
 - "unknown": Unclear query, or not related to AC remote.
 
 EXPECTED OUTPUT EXAMPLES (NO MARKDOWN):
@@ -703,7 +737,7 @@ EXPECTED OUTPUT EXAMPLES (NO MARKDOWN):
 
 {{"intent": "confirmation", "updated_task": "temp_down", "target_location_desc": "tengah bawah", "instruction": "Bukan, itu tombol kipas. Geser jempol sedikit ke atas untuk tombol turunkan suhu."}}
 
-{{"intent": "question", "updated_task": "N/A", "target_location_desc": "N/A", "instruction": "Suhu di layar saat ini menunjukkan 24 derajat."}}
+{{"intent": "question", "updated_task": "N/A", "target_location_desc": "N/A", "instruction": "Suhu di layar saat ini menunjukkan 24 derajat dengan mode cool dan kecepatan angin rendah."}}
 """
 
     messages_payload = [
@@ -713,17 +747,7 @@ EXPECTED OUTPUT EXAMPLES (NO MARKDOWN):
             "content": [
                 {
                     "type": "text",
-                    "text": "Image 1 (Reference Layout - IGNORE FOR CURRENT STATUS):"
-                },
-                {
-                    "type": "image_url",
-                    "image_url": {
-                        "url": f"data:image/jpeg;base64,{reference_guided_b64}"
-                    },
-                },
-                {
-                    "type": "text",
-                    "text": "Image 2 (Actual Current Condition - USE THIS TO ANSWER STATUS/DISPLAY QUESTIONS):"
+                    "text": "Single latest remote image (contains bbox + button indices overlay, and thumb marker):"
                 },
                 {
                     "type": "image_url",
