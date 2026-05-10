@@ -88,12 +88,12 @@ def run_whisper_transcription(audio_data):
         vad_parameters=dict(
             min_silence_duration_ms=int(os.getenv("WHISPER_MIN_SILENCE_MS", "500"))
         ),
-        initial_prompt=(
-            "Percakapan asistif navigasi remote AC: 'Tolong nyalain AC-nya, saya kepanasan. "
-            "Apakah benar tombol yang ini? Coba raba bagian tengah, lalu tekan tombol power. "
-            "Suhunya turunkan ke 24 derajat atau naikkan sedikit. AC-nya masih menyala, "
-            "pindah ke mode dingin, atur kipasnya. Sepertinya bukan tombol yang ini, "
-            "geser ke ujung kanan bawah. Oke, matikan AC-nya sekarang.'"
+        initial_prompt = (
+            "Ini tombol apa ya? Tolong nyalakan AC-nya. Suhu sekarang berapa derajat? "
+            "Apakah posisi jempol saya sudah benar di tombol power? Udah bener belum di sini? "
+            "Tolong turunkan suhu jadi 24 derajat atau naikkan sedikit. "
+            "Matikan mode swing, ubah kipas ke fan, ganti mode cool atau dry. "
+            "Cek status layar AC. Geser ke atas, bawah, kiri, kanan."
         ),
         beam_size=int(os.getenv("WHISPER_BEAM_SIZE", "1")),
         best_of=int(os.getenv("WHISPER_BEST_OF", "1")),
