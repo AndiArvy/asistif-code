@@ -236,8 +236,14 @@ Example Output:
                 ],
             },
         ],
-        "temperature": 0.2,
+        "temperature": 0.7,
         "max_tokens": 2000,
+        "top_p": 0.8,
+        "presence_penalty": 1.5,
+        "extra_body": {
+            "top_k": 20,
+            "chat_template_kwargs": {"enable_thinking": False},
+        }, 
     }
 
     try:
@@ -413,10 +419,10 @@ def _match_task_texts(touched_fungsi, current_task):
         ["power", "on/off", "on", "off", "nyala", "mati", "nyala/mati", "hidup"],
         
         # B4: Suhu Naik (Hapus kata "temp" tunggal agar tidak overlap dengan suhu turun)
-        ["suhu naik", "temp up", "temp_up", "naikkan", "up", "tambah", "panas", "temp"],
+        ["suhu naik", "temp up", "temp_up", "naikkan", "up", "tambah", "panas", "temp", "suhu"],
         
         # B6: Suhu Turun 
-        ["suhu turun", "temp down", "temp_down", "turunkan", "down", "kurang", "dingin", "temp"],
+        ["suhu turun", "temp down", "temp_down", "turunkan", "down", "kurang", "dingin", "temp", "suhu"],
         
         # B5: Fan Speed
         ["fan", "kipas", "angin", "kecepatan", "speed", "quiet"],
@@ -747,8 +753,9 @@ CRITICAL RULES (MUST OBEY):
 3. READING THE SCREEN: If the user asks for temperature, mode, or status (Intent: "question"), read the LCD screen from this latest image. If the screen is off, blank, or unreadable, output EXACTLY: "Maaf, informasi di layar tidak terbaca oleh kamera."
 4. SPATIAL/TACTILE ONLY: Guide the user to physical buttons using only relative movements (atas, bawah, kiri, kanan) or absolute locations (pojok kiri atas).
 5. OVERLAY LABELS ARE INTERNAL: You may use bbox/index labels (b1, b2, ...) internally to reason, but NEVER mention labels/index/box IDs in final instruction to the user.
-6. INDONESIAN LANGUAGE: The final 'instruction' MUST be in Indonesian.
-7. OUTPUT FORMAT: STRICTLY output a raw JSON object only. NO markdown (```json). NO extra text.
+6. RED THUMB MARKER: The red marker in the image indicates the user's current finger position. Use it to determine which button they are touching, and guide them accordingly.
+7. INDONESIAN LANGUAGE: The final 'instruction' MUST be in Indonesian.
+8. OUTPUT FORMAT: STRICTLY output a raw JSON object only. NO markdown (```json). NO extra text.
 
 INTENT CATEGORIES:
 - "navigation": User wants to execute a command or change a setting (e.g., "Nyalakan AC", "Turunkan suhu", "Arahkan saya ke tombol power"). THIS IS THE PRIMARY INTENT FOR ANY ACTION.
@@ -793,8 +800,14 @@ EXPECTED OUTPUT EXAMPLES (NO MARKDOWN):
     payload = {
         "model": "local-model",
         "messages": messages_payload,
-        "temperature": 0.2,
+        "temperature": 0.7,
         "max_tokens": 2000,
+        "top_p": 0.8,
+        "presence_penalty": 1.5,
+        "extra_body": {
+            "top_k": 20,
+            "chat_template_kwargs": {"enable_thinking": False},
+        }, 
     }
 
     try:
