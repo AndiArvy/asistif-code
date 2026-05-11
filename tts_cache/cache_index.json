@@ -1838,5 +1838,95 @@
     "text": "Tombol tujuan berada di pojok kanan atas. Untuk mematikan AC, tekan tombol di pojok kanan atas.",
     "filename": "652ae641731d84fe1af005fd513518be.mp3",
     "hash": "652ae641731d84fe1af005fd513518be"
+  },
+  "db7ecf07d44afaa8c22a3086ade99229": {
+    "text": "Tombol tujuan berada di tengah kiri bawah layar LCD. Untuk mengubah suhu, raba tombol besar di tengah yang berada tepat di bawah bagian LCD.",
+    "filename": "db7ecf07d44afaa8c22a3086ade99229.mp3",
+    "hash": "db7ecf07d44afaa8c22a3086ade99229"
+  },
+  "a72e319b4c1f01edfa2859cc699acb8d": {
+    "text": "Tombol tujuan berada di tengah kiri bawah tombol mode. Geser jempol Anda ke atas menuju area di sebelah kiri tengah remote untuk menaikkan suhu.",
+    "filename": "a72e319b4c1f01edfa2859cc699acb8d.mp3",
+    "hash": "a72e319b4c1f01edfa2859cc699acb8d"
+  },
+  "31fb5e1a1fe7967feb9656296c7113f8": {
+    "text": "Bukan, itu bukan tombol power. Tombol untuk menyalakan atau mematikan AC ada di pojok kanan atas.",
+    "filename": "31fb5e1a1fe7967feb9656296c7113f8.mp3",
+    "hash": "31fb5e1a1fe7967feb9656296c7113f8"
+  },
+  "997fdbec52c93c96290e2f894ddeaf49": {
+    "text": "Ya benar. Jempol Anda sedang berada tepat di atas tombol yang berfungsi untuk menyalakan dan mematikan AC.",
+    "filename": "997fdbec52c93c96290e2f894ddeaf49.mp3",
+    "hash": "997fdbec52c93c96290e2f894ddeaf49"
+  },
+  "097e195ca98c11ccfccffa214955ce79": {
+    "text": "Ya, benar. Jari Anda tepat di atas tombol yang menyalakan dan mematikan AC (tombol pojok kanan atas).",
+    "filename": "097e195ca98c11ccfccffa214955ce79.mp3",
+    "hash": "097e195ca98c11ccfccffa214955ce79"
+  },
+  "f198d380be268e808a3ed7b11e79e5ee": {
+    "text": "Ya, AC sudah menyala. Suhu saat ini adalah 24 derajat dengan mode AUTO.",
+    "filename": "f198d380be268e808a3ed7b11e79e5ee.mp3",
+    "hash": "f198d380be268e808a3ed7b11e79e5ee"
+  },
+  "ac5d23e84d8b607f0038be8964da89ad": {
+    "text": "Tombol tujuan berada di tengah kiri. Untuk menurunkan suhu, geser jempol Anda ke tombol 'turun' (b3) yang berada di tengah bagian remote.",
+    "filename": "ac5d23e84d8b607f0038be8964da89ad.mp3",
+    "hash": "ac5d23e84d8b607f0038be8964da89ad"
+  },
+  "34fb3e065eeb3db8d5931997f03a69d2": {
+    "text": "Suhu di layar saat ini menunjukkan 20 derajat.",
+    "filename": "34fb3e065eeb3db8d5931997f03a69d2.mp3",
+    "hash": "34fb3e065eeb3db8d5931997f03a69d2"
+  },
+  "d88b664eb0503cd71ba3720595a4fe7f": {
+    "text": "Tombol tujuan berada di tengah kanan bawah. Untuk mengencangkan (menaikkan) kecepatan angin, raba tombol di tengah bagian bawah remote.",
+    "filename": "d88b664eb0503cd71ba3720595a4fe7f.mp3",
+    "hash": "d88b664eb0503cd71ba3720595a4fe7f"
+  },
+  "765422edd9ca753d7b5acb5913120046": {
+    "text": "Ini adalah tombol untuk mengatur kecepatan angin (wind), yaitu b5.",
+    "filename": "765422edd9ca753d7b5acb5913120046.mp3",
+    "hash": "765422edd9ca753d7b5acb5913120046"
+  },
+  "f1c6f6e58aaa0b622974692c5f738eb9": {
+    "text": "Kecepatan kipas sedang diatur ke 'Low'. Suhu di layar saat ini menunjukkan 20 derajat dengan mode cool.",
+    "filename": "f1c6f6e58aaa0b622974692c5f738eb9.mp3",
+    "hash": "f1c6f6e58aaa0b622974692c5f738eb9"
+  },
+  "5198a666c7df7f98b54089916a09c2c6": {
+    "text": "Tombol tujuan berada di tengah atas. Geser jempol Anda dari posisi sekarang sedikit ke arah kiri dan naik untuk menekan tombol turunkan suhu.",
+    "filename": "5198a666c7df7f98b54089916a09c2c6.mp3",
+    "hash": "5198a666c7df7f98b54089916a09c2c6"
+  },
+  "a56c71f48b66a8aca621aadf354bab69": {
+    "text": "Ya, jari Anda berada tepat pada tombol untuk mengatur suhu. Untuk menurunkan suhu, tekan atau geser ke bawah sedikit.",
+    "filename": "a56c71f48b66a8aca621aadf354bab69.mp3",
+    "hash": "a56c71f48b66a8aca621aadf354bab69"
+  },
+  "db8b70bb1497d44c86e18365e074c25a": {
+    "text": "Suhu di layar saat ini menunjukkan 20 derajat dengan mode pendingin dan kecepatan angin rendah.",
+    "filename": "db8b70bb1497d44c86e18365e074c25a.mp3",
+    "hash": "db8b70bb1497d44c86e18365e074c25a"
+  },
+  "74a057553e63fa625893929ef916ef5e": {
+    "text": "Maaf, saya adalah asisten untuk membantu Anda mengoperasikan remote AC. Saya tidak memiliki nama pribadi.",
+    "filename": "74a057553e63fa625893929ef916ef5e.mp3",
+    "hash": "74a057553e63fa625893929ef916ef5e"
+  },
+  "877a684699dfa73b76972452e0b5f8f9": {
+    "text": "Saat ini jam di layar menunjukkan pukul 12.32.",
+    "filename": "877a684699dfa73b76972452e0b5f8f9.mp3",
+    "hash": "877a684699dfa73b76972452e0b5f8f9"
+  },
+  "2c88c585a46c6cc3cc70842ed354370e": {
+    "text": "Maaf, saya hanya bisa membantu mengatur pengaturan AC remote ini.",
+    "filename": "2c88c585a46c6cc3cc70842ed354370e.mp3",
+    "hash": "2c88c585a46c6cc3cc70842ed354370e"
+  },
+  "b2ae3d8bafea5c83dedca3db8f4ce0e8": {
+    "text": "Tombol tujuan berada di kanan bawah. Untuk mengecek dan mengatur kecepatan angin, geser jempol Anda ke kanan menuju tombol 'ON/OFF' yang berada di sebelah layar digital.",
+    "filename": "b2ae3d8bafea5c83dedca3db8f4ce0e8.mp3",
+    "hash": "b2ae3d8bafea5c83dedca3db8f4ce0e8"
   }
 }

@@ -51,6 +51,70 @@ reference_indexed_b64 = None
 reference_indexed_image_cv = None  # Simpan versi CV2 untuk digambar titik merah nanti
 layout_data = {}
 
+# =========================
+# SYNONYM GROUPS (digunakan bersama antara VLM mapping & matching)
+# =========================
+SYNONYM_GROUPS = [
+    # Power
+    ["power", "on/off", "on", "off", "nyala", "mati", "nyala/mati", "hidup", "matikan", "nyalakan"],
+
+    # Suhu Naik (Termasuk kata umum suhu/temp untuk tombol hybrid)
+    ["suhu naik", "temp up", "temp_up", "naikkan", "up", "tambah", "panas", "temp", "suhu", "plus", "+", "warmer"],
+
+    # Suhu Turun (Termasuk kata umum suhu/temp untuk tombol hybrid)
+    ["suhu turun", "temp down", "temp_down", "turunkan", "down", "kurang", "dingin", "temp", "suhu", "minus", "-", "cooler"],
+
+    # Fan Speed
+    ["fan", "kipas", "angin", "kecepatan", "speed", "quiet", "level", "kencang", "pelan"],
+
+    # Mode
+    ["mode", "cool", "dry", "heat", "auto", "dingin", "kering", "otomatis"],
+
+    # Swing
+    ["swing", "a.swing", "m.swing", "ayun", "arah angin", "air swing", "gerak", "sirip"],
+
+    # Turbo / Fast Cooling
+    ["turbo", "powerful", "jet", "fast cooling", "cepat", "kencang", "max", "super"],
+
+    # Eco / Hemat Energi
+    ["eco", "economic", "hemat", "energy saving", "low watt", "irit"],
+
+    # Sleep / Quiet
+    ["sleep", "malam", "tidur", "quiet", "silent", "senyap"],
+
+    # Display / Light
+    ["light", "lampu", "display", "led", "layar"],
+
+    # Timer On
+    ["timer on", "on timer", "timer nyala", "waktu nyala", "waktu on"],
+
+    # Timer Off
+    ["timer off", "off timer", "timer mati", "waktu mati", "waktu off"],
+
+    # Timer Naik
+    ["timer naik", "tambah waktu", "waktu naik", "durasi naik"],
+
+    # Timer Turun
+    ["timer turun", "kurang waktu", "waktu turun", "durasi turun"],
+
+    # Set
+    ["set", "atur", "konfirmasi", "ok", "simpan"],
+
+    # Cancel
+    ["cancel", "batal", "batalkan", "reset"],
+
+    # Clock
+    ["clock", "jam", "waktu sekarang"]
+]
+
+# Flat list of all allowed function names (for VLM prompt constraint)
+ALLOWED_FUNCTIONS = sorted(set(
+    word.strip().lower()
+    for group in SYNONYM_GROUPS
+    for word in group
+))
+
+
 
 def _result_xyxy_list(result):
     """Normalize YOLO detection outputs into xyxy integer boxes."""
@@ -186,9 +250,21 @@ def generate_owl_layout(cv2_image):
     indexed_cv_image = cv2.cvtColor(np.array(pil_img), cv2.COLOR_RGB2BGR)
     return indexed_cv_image, local_layout
 
-def map_functions_with_vlm(clean_b64, indexed_b64, layout_dict):
-    """Meminta VLM mengenali fungsi spesifik remote AC untuk tiap indeks."""
-    system_prompt = """You are a vision assistant tasked with mapping a physical AC remote control.
+def map_functions_with_vlm(clean_b64, indexed_b64, layout_dict, synonym_groups=None):
+    """Meminta VLM mengenali fungsi spesifik remote AC untuk tiap indeks,
+    dengan batasan hanya pada fungsi yang terdaftar di synonym_groups (global).
+    Jika synonym_groups tidak diberikan, gunakan SYNONYM_GROUPS global."""
+    if synonym_groups is None:
+        synonym_groups = SYNONYM_GROUPS
+
+    # Bangun daftar kata kunci yang diizinkan dari semua grup sinonim
+    allowed_keywords = sorted(set(
+        word.strip().lower()
+        for group in synonym_groups
+        for word in group
+    ))
+
+    system_prompt = f"""You are a vision assistant tasked with mapping a physical AC remote control.
 I will provide two images: Image 1 (Clean Remote) and Image 2 (Remote with Bounding Boxes & Indices b1, b2, etc.).
 
 Your Task:
@@ -203,16 +279,16 @@ This includes buttons that:
 - have a vertical or oval/rocker shape
 
 Even if the icons are not visible, classify such buttons as 'suhu' (or 'suhu naik/turun').
-- If a button are completely unrecognized and it does not fit the heuristic rule above, use the value "tidak diketahui".
+- If a button is completely unrecognized and it does not fit the heuristic rule above, use the value "tidak diketahui".
 
 Output ONLY a valid, raw JSON object mapping the index to its function. DO NOT wrap the output in markdown blocks (e.g., do not use ```json) and DO NOT include any explanatory text before or after the JSON.
 
 Example Output:
-{
+{{
   "b1": "power",
   "b2": "suhu",
   "b3": "tidak diketahui"
-}"""
+}}"""
 
     payload = {
         "model": "local-model",
@@ -377,8 +453,6 @@ def auto_setup_layout(silent=True):
     return False
 
 
-import re
-
 def _task_aliases_with_button_index(text):
     """Kembalikan kandidat teks task, termasuk fungsi jika teks berisi indeks tombol."""
     raw_text = (text or "").lower().strip()
@@ -413,54 +487,13 @@ def _match_task_texts(touched_fungsi, current_task):
     if t1_is_timer != t2_is_timer:
         return False
 
-    # 2. Cek Sinonim / Alias (Sudah disesuaikan dengan JSON Layout)
-    synonym_groups = [
-        # B1, B2: Power & LED
-        ["power", "on/off", "on", "off", "nyala", "mati", "nyala/mati", "hidup"],
-        
-        # B4: Suhu Naik (Hapus kata "temp" tunggal agar tidak overlap dengan suhu turun)
-        ["suhu naik", "temp up", "temp_up", "naikkan", "up", "tambah", "panas", "temp", "suhu"],
-        
-        # B6: Suhu Turun 
-        ["suhu turun", "temp down", "temp_down", "turunkan", "down", "kurang", "dingin", "temp", "suhu"],
-        
-        # B5: Fan Speed
-        ["fan", "kipas", "angin", "kecepatan", "speed", "quiet"],
-        
-        # B3: Mode
-        ["mode", "cool", "dry", "heat", "auto"],
-        
-        # B7: Swing
-        ["swing", "a.swing", "m.swing", "ayun", "arah angin", "air swing"],
-        
-        # B9: Timer On
-        ["timer on", "on timer", "timer nyala", "waktu nyala", "waktu on"],
-        
-        # B13: Timer Off
-        ["timer off", "off timer", "timer mati", "waktu mati", "waktu off"],
-        
-        # B10: Timer Naik
-        ["timer naik", "tambah waktu", "waktu naik"],
-        
-        # B14: Timer Turun
-        ["timer turun", "kurang waktu", "waktu turun"],
-        
-        # B11: Set
-        ["set", "atur", "konfirmasi"],
-        
-        # B12: Cancel
-        ["cancel", "batal", "batalkan"],
-        
-        # B15: Clock
-        ["clock", "jam"]
-    ]
-    
+    # 2. Cek Sinonim / Alias (menggunakan SYNONYM_GROUPS global)
     def contains_word(text, word):
         # Menggunakan regex boundary \b untuk mencocokkan kata utuh
         pattern = r'\b' + re.escape(word) + r'\b'
         return bool(re.search(pattern, text))
 
-    for group in synonym_groups:
+    for group in SYNONYM_GROUPS:
         is_touched_in_group = any(contains_word(t1, alias) for alias in group)
         is_task_in_group = any(contains_word(t2, alias) for alias in group)
         
@@ -767,9 +800,9 @@ EXPECTED OUTPUT EXAMPLES (NO MARKDOWN):
 
 {{"intent": "navigation", "updated_task": "power", "target_location_desc": "pojok kanan atas", "instruction": "Untuk menyalakan AC, raba tombol di pojok kanan atas."}}
 
-{{"intent": "navigation", "updated_task": "temp_down", "target_location_desc": "tengah bawah", "instruction": "Untuk menurunkan suhu, geser jempol Anda ke bawah menuju bagian tengah remote."}}
+{{"intent": "navigation", "updated_task": "temp down", "target_location_desc": "tengah bawah", "instruction": "Untuk menurunkan suhu, geser jempol Anda ke bawah menuju bagian tengah remote."}}
 
-{{"intent": "confirmation", "updated_task": "temp_down", "target_location_desc": "tengah bawah", "instruction": "Bukan, itu tombol kipas. Geser jempol sedikit ke atas untuk tombol turunkan suhu."}}
+{{"intent": "confirmation", "updated_task": "temp down", "target_location_desc": "tengah bawah", "instruction": "Bukan, itu tombol kipas. Geser jempol sedikit ke atas untuk tombol turunkan suhu."}}
 
 {{"intent": "question", "updated_task": "N/A", "target_location_desc": "N/A", "instruction": "Suhu di layar saat ini menunjukkan 24 derajat dengan mode cool dan kecepatan angin rendah."}}
 """
