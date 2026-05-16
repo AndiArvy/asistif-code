@@ -312,7 +312,7 @@ Example Output:
                 ],
             },
         ],
-        "temperature": 0.7,
+        "temperature": 0.2,
         "max_tokens": 2000,
         "top_p": 0.8,
         "presence_penalty": 1.5,
@@ -783,28 +783,31 @@ CURRENT STATE:
 CRITICAL RULES (MUST OBEY):
 1. BLIND USER: NEVER tell the user to "look at", "see", or "check" the screen. NEVER tell them to touch the screen. They cannot see.
 2. SINGLE IMAGE POLICY: You only receive ONE latest image. Do not assume any second/reference image exists.
-3. READING THE SCREEN: If the user asks for temperature, mode, or status (Intent: "question"), read the LCD screen from this latest image. If the screen is off, blank, or unreadable, output EXACTLY: "Maaf, informasi di layar tidak terbaca oleh kamera."
-4. SPATIAL/TACTILE ONLY: Guide the user to physical buttons using only relative movements (atas, bawah, kiri, kanan) or absolute locations (pojok kiri atas).
-5. OVERLAY LABELS ARE INTERNAL: You may use bbox/index labels (b1, b2, ...) internally to reason, but NEVER mention labels/index/box IDs in final instruction to the user.
-6. RED THUMB MARKER: The red marker in the image indicates the user's current finger position. Use it to determine which button they are touching, and guide them accordingly.
-7. INDONESIAN LANGUAGE: The final 'instruction' MUST be in Indonesian.
-8. OUTPUT FORMAT: STRICTLY output a raw JSON object only. NO markdown (```json). NO extra text.
+3. TASK STANDARDIZATION: The 'updated_task' in your JSON output MUST EXACTLY match one of the strings provided in 'Available Functions'. DO NOT generate custom or long descriptions. If the intent is just a question, output "none".
+4. READING THE LCD SCREEN: The screen uses a mix of text, large numbers, and small abstract icons. 
+   - Temperature: Usually the largest numbers visible.
+   - Mode: Look for icons (Snowflake = Cool, Water Drop = Dry, Sun = Heat, Fan/Propeller = Fan Only).
+   - Fan Speed: Usually represented by a small BAR GRAPH, mobile phone signal bars (vertical bars increasing in height from left to right), stair-step icon, or fan blades. If you see bars, estimate the level (e.g., 1 bar = rendah, 3 bars = tinggi).
+   - If the screen is off, blank, or the tiny icons/bars are too blurry to confidently read, output EXACTLY: "Maaf, detail informasi di layar tidak terbaca cukup jelas oleh kamera."
+5. SPATIAL/TACTILE ONLY: Guide the user to physical buttons using only relative movements (atas, bawah, kiri, kanan) or absolute locations (pojok kiri atas).
+6. OVERLAY LABELS ARE INTERNAL: You may use bbox/index labels (b1, b2, ...) internally to reason, but NEVER mention labels/index/box IDs in final instruction to the user.
+7. RED THUMB MARKER: The red marker in the image indicates the user's current finger position. Use it to determine which button they are touching, and guide them accordingly.
+8. INDONESIAN LANGUAGE: The final 'instruction' MUST be in Indonesian.
+9. OUTPUT FORMAT: STRICTLY output a raw JSON object only. NO markdown (```json). NO extra text.
 
 INTENT CATEGORIES:
-- "navigation": User wants to execute a command or change a setting (e.g., "Nyalakan AC", "Turunkan suhu", "Arahkan saya ke tombol power"). THIS IS THE PRIMARY INTENT FOR ANY ACTION.
-- "confirmation": User asks if their current finger position is correct for a specific task (e.g., "Apakah jari saya sudah pas di tombol suhu?").
-- "question": User asks for screen info (temperature, mode, etc.), or asking about the button they are touching (e.g., "Ini tombol apa ya?").
-- "unknown": Unclear query, or not related to AC remote.
+- "navigation": User wants to execute a command or change a setting.
+- "confirmation": User asks if their current finger position is correct.
+- "question": User asks for screen info or about the button they are touching.
+- "unknown": Unclear query.
 
 EXPECTED OUTPUT EXAMPLES (NO MARKDOWN):
 
 {{"intent": "navigation", "updated_task": "power", "target_location_desc": "pojok kanan atas", "instruction": "Untuk menyalakan AC, raba tombol di pojok kanan atas."}}
 
-{{"intent": "navigation", "updated_task": "temp down", "target_location_desc": "tengah bawah", "instruction": "Untuk menurunkan suhu, geser jempol Anda ke bawah menuju bagian tengah remote."}}
+{{"intent": "navigation", "updated_task": "temp_down", "target_location_desc": "tengah bawah", "instruction": "Untuk menurunkan suhu, geser jempol Anda ke bawah menuju bagian tengah remote."}}
 
-{{"intent": "confirmation", "updated_task": "temp down", "target_location_desc": "tengah bawah", "instruction": "Bukan, itu tombol kipas. Geser jempol sedikit ke atas untuk tombol turunkan suhu."}}
-
-{{"intent": "question", "updated_task": "N/A", "target_location_desc": "N/A", "instruction": "Suhu di layar saat ini menunjukkan 24 derajat dengan mode cool dan kecepatan angin rendah."}}
+{{"intent": "question", "updated_task": "none", "target_location_desc": "N/A", "instruction": "Suhu di layar saat ini 24 derajat dengan mode cool, kecepatan kipas tampak rendah."}}
 """
 
     messages_payload = [
@@ -833,7 +836,7 @@ EXPECTED OUTPUT EXAMPLES (NO MARKDOWN):
     payload = {
         "model": "local-model",
         "messages": messages_payload,
-        "temperature": 0.7,
+        "temperature": 0.2,
         "max_tokens": 2000,
         "top_p": 0.8,
         "presence_penalty": 1.5,
