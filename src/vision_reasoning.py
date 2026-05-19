@@ -221,7 +221,7 @@ def generate_owl_layout(cv2_image):
     # --- LOGIKA DRAWING ASLI ANDA (TIDAK DIUBAH) ---
     draw = ImageDraw.Draw(pil_img)
     try:
-        font = ImageFont.truetype("arial.ttf", 18)
+        font = ImageFont.truetype("arial.ttf", 27)
     except:
         font = ImageFont.load_default()
 
@@ -237,12 +237,12 @@ def generate_owl_layout(cv2_image):
         }
 
         # Menggambar kotak lime
-        draw.rectangle(box, outline="lime", width=2)
+        draw.rectangle(box, outline="lime", width=3)
         
-        # Logika teks asli Anda: Teks di posisi (x+2, y+2), dengan background hitam rectangle
-        text_pos = (box[0] + 2, box[1] + 2)
+        # Logika teks: Teks di posisi (x+3, y+3), dengan background hitam rectangle
+        text_pos = (box[0] + 3, box[1] + 3)
         # Menghitung perkiraan area background hitam agar teks arial tidak tumpang tindih
-        draw.rectangle([text_pos, (text_pos[0] + 30, text_pos[1] + 20)], fill="black")
+        draw.rectangle([text_pos, (text_pos[0] + 45, text_pos[1] + 30)], fill="black")
         draw.text(text_pos, indeks, fill="lime", font=font)
         button_counter += 1
 
