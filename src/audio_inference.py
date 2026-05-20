@@ -21,21 +21,19 @@ from vision_reasoning import process_vlm_reasoning
 
 print("Memuat model Whisper...")
 model = WhisperModel(
-    os.getenv("WHISPER_MODEL_SIZE", "deepdml/faster-whisper-large-v3-turbo-ct2"), #4s
+    os.getenv("WHISPER_MODEL_SIZE", "deepdml/faster-whisper-large-v3-turbo-ct2"),
     device=os.getenv("WHISPER_DEVICE", "cuda"),
     compute_type=os.getenv("WHISPER_COMPUTE_TYPE", "int8_float16"),
     cpu_threads=int(os.getenv("WHISPER_CPU_THREADS", "8")),
 )
 print("Model siap!")
-# Panggil ini tepat setelah Anda berhasil me-load Whisper!
 print("Memuat model visual...")
-# vision_reasoning.init_vision_models()
 print("Sistem siap menerima perintah!")
 
-# --- PENGATURAN DETEKSI KALIMAT (VAD) ---
-SILENCE_THRESHOLD = int(os.getenv("SILENCE_THRESHOLD", "2000"))
-# Nilai 50 sering memicu jeda panjang. Turunkan agar kalimat diproses lebih cepat.
-SILENCE_CHUNKS_LIMIT = int(os.getenv("SILENCE_CHUNKS_LIMIT", "28"))
+# --- HOLD TO SPEAK STATE ---
+hold_to_speak_active = False
+hold_audio_buffer = bytearray()
+draining = False
 
 # --- FLAG UNTUK PAUSE AUDIO SAAT WHISPER INFERENCE ---
 global whisper_is_inferencing
@@ -45,7 +43,7 @@ whisper_is_inferencing = False
 async def wait_until_layout_ready():
     """Tahan listener mic sampai layout remote berhasil dipetakan."""
     if not vision_reasoning.is_layout_ready:
-        print("Mic nonaktif. Menunggu layout remote berhasil diambil...")
+        print("Menunggu layout remote berhasil diambil...")
 
     while not vision_reasoning.is_layout_ready:
         await asyncio.sleep(0.5)
@@ -99,24 +97,72 @@ def run_whisper_transcription(audio_data):
         best_of=int(os.getenv("WHISPER_BEST_OF", "1")),
         temperature=0.0,
     )
-    # Ubah generator ke list di dalam thread terpisah ini
     return list(segments_generator)
+
 
 async def run_vlm_task(text_result):
     global system_is_busy
     try:
-        # Jalankan VLM
         await asyncio.to_thread(process_vlm_reasoning, text_result)
     except Exception as e:
         print(f"Error saat memproses VLM: {e}")
     finally:
-        # BUKA KUNCI MIC SETELAH VLM SELESAI
-        print(">>> VLM Selesai. Mic siap menerima perintah baru. <<<")
+        print(">>> VLM Selesai. Siap menerima perintah baru. <<<")
         system_is_busy = False
 
 
+async def process_buffered_audio():
+    """Process the hold-to-speak audio buffer with Whisper"""
+    global system_is_busy, hold_audio_buffer
+
+    if len(hold_audio_buffer) < 2048:
+        print("[Hold] Audio terlalu pendek, diabaikan.")
+        hold_audio_buffer.clear()
+        return
+
+    system_is_busy = True
+    is_valid_command = False
+
+    audio_data = (
+        np.frombuffer(hold_audio_buffer, dtype=np.int16).astype(np.float32) / 32768.0
+    )
+    hold_audio_buffer.clear()
+
+    try:
+        segments = await asyncio.to_thread(run_whisper_transcription, audio_data)
+
+        if len(segments) > 0:
+            avg_no_speech_prob = sum(s.no_speech_prob for s in segments) / len(segments)
+
+            if avg_no_speech_prob > 0.5:
+                print(f"(Mengabaikan noise. Probabilitas: {avg_no_speech_prob:.2f})")
+            else:
+                text_result = "".join([s.text for s in segments]).strip()
+                clean_text = re.sub(r"[^\w\s]", "", text_result).strip().lower()
+
+                halusinasi = [
+                    "terima kasih", "terimakasih", "terima kasih banyak",
+                    "terima kasih telah menonton", "terimakasih telah menonton", "kembali"
+                ]
+
+                if clean_text not in halusinasi and text_result:
+                    is_valid_command = True
+                    print(f"[Pengguna]: {text_result}")
+
+                    asyncio.create_task(send_log_async(text_result))
+                    asyncio.create_task(run_vlm_task(text_result))
+
+    except Exception as e:
+        print(f"Terjadi kesalahan di Whisper: {e}")
+
+    finally:
+        if not is_valid_command:
+            system_is_busy = False
+
+
 async def listen_to_mic():
-    global system_is_busy
+    """Hold-to-speak: buffer audio only while user holds the button"""
+    global hold_to_speak_active, hold_audio_buffer, draining
     uri = "ws://localhost:8080/audio_feed"
 
     while True:
@@ -125,95 +171,21 @@ async def listen_to_mic():
         try:
             print("Mencoba terhubung ke mic HP via WebSocket...")
             async with websockets.connect(uri) as websocket:
-                print("Berhasil terhubung! Mulai bicara satu kalimat utuh...")
-
-                audio_buffer = bytearray()
-                silence_counter = 0
-                is_speaking = False
+                print("Berhasil terhubung! Tekan & tahan tombol untuk bicara...")
 
                 while True:
                     if not vision_reasoning.is_layout_ready:
                         print("Layout belum siap/direset. Mic dinonaktifkan sementara.")
-                        audio_buffer.clear()
+                        hold_audio_buffer.clear()
                         break
 
                     chunk = await websocket.recv()
-                    
-                    # --- [MODIFIKASI] BUANG AUDIO JIKA SISTEM (WHISPER ATAU VLM) SIBUK ---
-                    # Ini mencegah WebSocket terputus, tapi memastikan suara baru tidak diproses
+
                     if system_is_busy:
                         continue
 
-                    chunk_arr = np.frombuffer(chunk, dtype=np.int16)
-                    volume = np.max(np.abs(chunk_arr))
-
-                    if volume > SILENCE_THRESHOLD:
-                        is_speaking = True
-                        silence_counter = 0
-                        audio_buffer.extend(chunk)
-                    else:
-                        if is_speaking:
-                            silence_counter += 1
-                            audio_buffer.extend(chunk)
-                        else:
-                            audio_buffer = bytearray(chunk)
-
-                    if is_speaking and silence_counter > SILENCE_CHUNKS_LIMIT:
-                        audio_data = (
-                            np.frombuffer(audio_buffer, dtype=np.int16).astype(np.float32) / 32768.0
-                        )
-
-                        if len(audio_data) > (16000 * 0.5):
-                            print("Memproses 1 kalimat utuh...")
-
-                            # --- [MODIFIKASI] KUNCI MIC SEKARANG! ---
-                            system_is_busy = True
-                            is_valid_command = False # Penanda apakah ini perintah beneran atau noise
-
-                            try:
-                                # Jalankan Whisper
-                                segments = await asyncio.to_thread(run_whisper_transcription, audio_data)
-                                
-                                if len(segments) > 0:
-                                    avg_no_speech_prob = sum(s.no_speech_prob for s in segments) / len(segments)
-
-                                    if avg_no_speech_prob > 0.5:
-                                        print(f"(Mengabaikan noise. Probabilitas: {avg_no_speech_prob:.2f})")
-                                    else:
-                                        text_result = "".join([s.text for s in segments]).strip()
-                                        clean_text = re.sub(r"[^\w\s]", "", text_result).strip().lower()
-
-                                        halusinasi = [
-                                            "terima kasih", "terimakasih", "terima kasih banyak",
-                                            "terima kasih telah menonton", "terimakasih telah menonton", "kembali"
-                                        ]
-
-                                        if clean_text not in halusinasi and text_result:
-                                            is_valid_command = True
-                                            print(f"[Pengguna]: {text_result}")
-
-                                            # --- KIRIM LOG SECARA BACKGROUND (NON-BLOCKING) ---
-                                            asyncio.create_task(send_log_async(text_result))
-
-                                            # --- [MODIFIKASI] JALANKAN VLM MENGGUNAKAN WRAPPER ---
-                                            # Mic akan tetap terkunci sampai fungsi run_vlm_task ini selesai!
-                                            asyncio.create_task(run_vlm_task(text_result))
-
-                            except Exception as e:
-                                print(f"Terjadi kesalahan di Whisper: {e}")
-                                
-                            finally:
-                                # --- JIKA BUKAN PERINTAH VALID (CUMA NOISE), LANGSUNG BUKA KUNCI ---
-                                # Tapi jika is_valid_command True, biarkan system_is_busy tetap True 
-                                # agar VLM yang berjalan di background bisa menyelesaikannya.
-                                if not is_valid_command:
-                                    system_is_busy = False
-
-                            # Reset state setelah pemrosesan awal (Whisper) selesai
-                            is_speaking = False
-                            silence_counter = 0
-                            audio_buffer.clear()
-                            await asyncio.sleep(0.5)
+                    if hold_to_speak_active or draining:
+                        hold_audio_buffer.extend(chunk)
 
         except websockets.exceptions.ConnectionClosed:
             print("Koneksi terputus. Menunggu server...")
@@ -222,8 +194,10 @@ async def listen_to_mic():
             print(f"Error: {e}")
             await asyncio.sleep(2)
 
+
 async def listen_to_commands():
-    """Mendengarkan sinyal Tap Layar dari server.py"""
+    """Mendengarkan sinyal hold-to-speak dari server.py via command_feed"""
+    global hold_to_speak_active, hold_audio_buffer, draining
     uri = "ws://localhost:8080/command_feed"
     while True:
         try:
@@ -231,29 +205,48 @@ async def listen_to_commands():
                 while True:
                     msg = await websocket.recv()
                     data = json.loads(msg)
-                    # Beri perintah default reset layout jika ditekan
-                    teks_sinyal = data.get("text", "ambil ulang layout")
-                    asyncio.create_task(
-                        asyncio.to_thread(process_vlm_reasoning, teks_sinyal)
-                    )
-        # ... catch block ...
+
+                    msg_type = data.get("type", "")
+                    action = data.get("action", "")
+
+                    if msg_type == "hold_action" and action == "start_listening":
+                        hold_audio_buffer.clear()
+                        hold_to_speak_active = True
+                        print("[Hold] MULAI mendengarkan...")
+
+                    elif msg_type == "hold_action" and action == "stop_listening":
+                        hold_to_speak_active = False
+                        draining = True
+                        print("[Hold] BERHENTI, menguras sisa audio...")
+                        await asyncio.sleep(0.4)
+                        draining = False
+                        print("[Hold] Memproses audio...")
+                        asyncio.create_task(process_buffered_audio())
+
+                    elif data.get("text"):
+                        # Legacy/alternative command format
+                        teks_sinyal = data.get("text", "ambil ulang layout")
+                        asyncio.create_task(
+                            asyncio.to_thread(process_vlm_reasoning, teks_sinyal)
+                        )
+
         except websockets.exceptions.ConnectionClosed:
             await asyncio.sleep(2)
         except Exception as e:
+            print(f"Error: {e}")
             await asyncio.sleep(2)
-            
+
+
 async def auto_scan_layout():
     """Looping background untuk mendeteksi remote secara otomatis saat baru mulai atau setelah di-reset"""
     print("Pemindai otomatis aktif. Menunggu remote masuk frame...")
     while True:
-        # Jika layout belum ada, coba tangkap frame secara diam-diam (silent=True)
         if not vision_reasoning.is_layout_ready:
             sukses = await asyncio.to_thread(vision_reasoning.auto_setup_layout, silent=True)
             if sukses:
                 print(">>> Layout remote otomatis tertangkap dan diproses! <<<")
-                
-        # Polling setiap 3 detik (jangan terlalu cepat agar PC tidak berat)
         await asyncio.sleep(3)
+
 
 async def ensure_tts_cache_preloaded():
     """Ensure TTS cache is available and trigger server preload"""
@@ -261,23 +254,22 @@ async def ensure_tts_cache_preloaded():
         cache = get_tts_cache()
         info = cache.get_cache_info()
         print(f"[TTS Cache] Status: {info['total_entries']} entries, {info['total_size_mb']} MB")
-        
-        # --- TRIGGER SERVER PRELOAD SECARA BACKGROUND (NON-BLOCKING) ---
+
         asyncio.create_task(preload_tts_async())
     except Exception as e:
         print(f"[TTS Cache] Warning: {e}")
 
+
 async def main():
-    # Ensure TTS cache is ready before starting main loops
     print("[System] Initializing TTS cache system...")
     await ensure_tts_cache_preloaded()
     vision_reasoning.start_background_task_monitor()
-    
+
     print("[System] Starting main service loops...")
     await asyncio.gather(
         listen_to_mic(),
         listen_to_commands(),
-        auto_scan_layout()  # Tambahkan scanner ini di sini
+        auto_scan_layout()
     )
 
 if __name__ == "__main__":

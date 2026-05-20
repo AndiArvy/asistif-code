@@ -354,7 +354,6 @@ def auto_setup_layout(silent=True):
     
     if outputs and outputs[0]["image"] is not None:
         # --- 2. FASE STABILISASI (Mencegah Blur & Menunggu Autofocus) ---
-        _fire_and_forget_post(LOG_URL, json={"sender": "Control", "text": "MIC_OFF"})
         _speak("Remote terlihat. Tahan sebentar...")
         
         # Jeda 2 detik. Karena dipanggil via asyncio.to_thread, ini tidak akan membuat server WebRTC crash.
@@ -364,7 +363,6 @@ def auto_setup_layout(silent=True):
         _fire_and_forget_post(LOG_URL, json={"sender": "Sistem", "text": "Mengambil gambar jernih..."})
         frame_stabil = capture_current_frame()
         cv2.imwrite("debug_frame.jpg", frame_stabil)
-        _fire_and_forget_post(LOG_URL, json={"sender": "Control", "text": "MIC_OFF"})
         
             
         outputs_stabil = process_yolo_rotation(frame_stabil, yolo_model, target_class=CLASS_ID_REMOTE)
@@ -372,9 +370,7 @@ def auto_setup_layout(silent=True):
         
         if remote_crop is None:
             _speak("Remote hilang dari pandangan. Silakan arahkan lagi.")
-            _fire_and_forget_post(LOG_URL, json={"sender": "Control", "text": "MIC_ON"})
             return False
-        _fire_and_forget_post(LOG_URL, json={"sender": "Control", "text": "MIC_OFF"})
 
         # --- 4. VALIDASI UKURAN GAMBAR (Jarak Remote) ---
         tinggi, lebar = remote_crop.shape[:2]
@@ -382,9 +378,7 @@ def auto_setup_layout(silent=True):
         
         if luas_area < 40000: # Threshold luas (bisa disesuaikan nanti)
             _speak("Terlalu jauh. Dekatkan sedikit.")
-            _fire_and_forget_post(LOG_URL, json={"sender": "Control", "text": "MIC_ON"})
             return False
-        _fire_and_forget_post(LOG_URL, json={"sender": "Control", "text": "MIC_OFF"})
 
         # --- 4b. VALIDASI MARGIN REMOTE (Tidak Terlalu Dekat Tepi Frame) ---
         MARGIN = 3  # Margin dalam pixel dari tepi frame
@@ -418,25 +412,20 @@ def auto_setup_layout(silent=True):
                         message = "Terlalu dekat, Jauhkan sedikit."
                     
                     _speak(message)
-                    _fire_and_forget_post(LOG_URL, json={"sender": "Control", "text": "MIC_ON"})
                     return False
-        _fire_and_forget_post(LOG_URL, json={"sender": "Control", "text": "MIC_OFF"})
 
         # --- 5. EKSTRAKSI LAYOUT & MAPPING VLM ---
         _fire_and_forget_post(LOG_URL, json={"sender": "Sistem", "text": "Kamera stabil! Mengunci gambar dan mengekstrak layout..."})
         _speak("Memetakan tombol remote...")
-        _fire_and_forget_post(LOG_URL, json={"sender": "Control", "text": "MIC_OFF"})
 
         reference_clean_b64 = cv2_to_base64(remote_crop)
         cv2.imwrite("debug_clean_reference.jpg", remote_crop)
-        _fire_and_forget_post(LOG_URL, json={"sender": "Control", "text": "MIC_OFF"})
 
         indexed_cv, local_layout = generate_owl_layout(remote_crop)
         reference_indexed_image_cv = indexed_cv.copy()
         reference_indexed_b64 = cv2_to_base64(indexed_cv)
         cv2.imwrite("debug_indexed_reference.jpg", indexed_cv)
 
-        _fire_and_forget_post(LOG_URL, json={"sender": "Control", "text": "MIC_OFF"})
         layout_data = map_functions_with_vlm(
             reference_clean_b64, reference_indexed_b64, local_layout
         )
@@ -444,7 +433,6 @@ def auto_setup_layout(silent=True):
         is_layout_ready = True
 
         _speak("Pemetaan remote berhasil. Mau saya bantu apa?")
-        _fire_and_forget_post(LOG_URL, json={"sender": "Control", "text": "MIC_OFF"})
 
         return True
 
@@ -665,7 +653,6 @@ def background_task_monitor_loop():
             active_task_context = DEFAULT_TASK_CONTEXT
             active_task_intent = None
             conversation_history.append({"role": "assistant", "content": teks})
-            _fire_and_forget_post(LOG_URL, json={"sender": "Control", "text": "MIC_ON"})
 
 
 def start_background_task_monitor():
@@ -687,7 +674,6 @@ def process_vlm_reasoning(user_text):
     global conversation_history, active_task_context, active_task_intent, is_layout_ready
     global reference_clean_b64, reference_indexed_b64, reference_indexed_image_cv, layout_data
 
-    _fire_and_forget_post(LOG_URL, json={"sender": "Control", "text": "MIC_OFF"})
 
     normalized_text = re.sub(r"\s+", " ", user_text.lower()).strip()
     if any(phrase in normalized_text for phrase in ["reset layout", "ulang layout", "ganti remote", "remote baru"]):
@@ -758,7 +744,6 @@ def process_vlm_reasoning(user_text):
             active_task_intent = None
             conversation_history.append({"role": "user", "content": user_text})
             conversation_history.append({"role": "assistant", "content": teks})
-            _fire_and_forget_post(LOG_URL, json={"sender": "Control", "text": "MIC_ON"})
             return
         # else:
             # teks = f"Tidak, tombol ini salah. Geser jempol Anda ke tombol yang lain."

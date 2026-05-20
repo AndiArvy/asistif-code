@@ -40,6 +40,9 @@ async def listen_to_tap_commands():
                 while True:
                     msg = await websocket.recv()
                     data = json.loads(msg)
+                    # Abaikan sinyal hold-to-speak (hanya untuk mode audio)
+                    if data.get("type") == "hold_action":
+                        continue
                     # Jika ada sinyal tap, jalankan logika VLM
                     asyncio.create_task(run_vlm_logic(data["text"], source="Tap Layar"))
         except:

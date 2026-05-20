@@ -2,7 +2,7 @@ import asyncio
 import json
 import os
 import cv2
-from aiohttp import web
+from aiohttp import web, WSMsgType
 from aiortc import RTCPeerConnection, RTCSessionDescription
 import base64
 import io
@@ -158,7 +158,14 @@ async def frontend_ws(request):
     frontend_clients.add(ws)
     try:
         async for msg in ws:
-            pass
+            if msg.type == WSMsgType.TEXT:
+                try:
+                    data = json.loads(msg.data)
+                    if data.get("type") == "hold_action":
+                        for ws_cmd in list(command_clients):
+                            await ws_cmd.send_json(data)
+                except Exception as e:
+                    print(f"[frontend_ws] Error: {e}")
     finally:
         frontend_clients.remove(ws)
     return ws
