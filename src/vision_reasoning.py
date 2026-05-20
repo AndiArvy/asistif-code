@@ -722,42 +722,52 @@ def process_vlm_reasoning(user_text):
 
     current_guided_b64 = cv2_to_base64(current_drawn_cv)
 
+    has_active_task = active_task_context != DEFAULT_TASK_CONTEXT
+    is_touch_valid = thumb_center and current_touched_fungsi != "tidak ada"
+
+    # --- DETEKSI "INI TOMBOL APA?" ---
+    what_patterns = [
+        r'tombol apa (ini|itu)',
+        r'(ini|itu) tombol apa',
+        r'apa (ini|itu)',
+        r'fungsi apa (ini|itu)',
+        r'(ini|itu) fungsi apa',
+        r'tombol (apa|mana) (ini|itu)',
+        r'apa yang (aku|saya) sentuh',
+        r'apa (ini|itu) .*(tombol|fungsi)',
+    ]
+    is_what_question = any(re.search(p, normalized_text) for p in what_patterns)
+
+    if is_what_question:
+        if thumb_center and current_touched_fungsi not in ["tidak ada", "tidak diketahui"]:
+            teks = f"Ini adalah tombol {current_touched_fungsi}."
+        else:
+            teks = "Jempol anda belum menyentuh tombol manapun."
+        _speak(teks)
+        conversation_history.append({"role": "user", "content": user_text})
+        conversation_history.append({"role": "assistant", "content": teks})
+        return
+
     # --- DETEKSI PERTANYAAN KONFIRMASI TOMBOL ---
-    CONFIRM_KEYWORDS = {"benar", "betul", "tepat", "sesuai", "cocok"}
-    OBJECT_KEYWORDS = {"ini", "itu", "yang ini", "yang itu", "tombol ini", "tombol itu"}
-    
-    
-    def contains_phrase(text, phrases):
-        return any(p in text for p in phrases)
+    confirm_keywords = {"benar", "betul", "tepat", "sesuai", "cocok", "bener"}
+    confirm_patterns = [
+        r'(udah|sudah|apakah).*(benar|betul|tepat|sesuai|cocok|bener)',
+        r'(benar|betul|tepat|sesuai|cocok|bener).*(tidak|nggak|belum|kah|kan)',
+        r'(apakah|apa).*(ini|itu).*(benar|betul|tepat|sesuai)',
+        r'(ini|itu).*(benar|betul|tepat|sesuai|cocok|bener)',
+        r'sudah (tepat|benar|betul)',
+    ]
+    is_confirm = any(w in confirm_keywords for w in words) or any(re.search(p, normalized_text) for p in confirm_patterns)
 
-    is_confirm = any(w in CONFIRM_KEYWORDS for w in words)
-    is_object = contains_phrase(normalized_text, OBJECT_KEYWORDS)
-
-    has_active_task = active_task_context != DEFAULT_TASK_CONTEXT
-    is_touch_valid = thumb_center and current_touched_fungsi != "tidak ada"
-
-    is_asking_confirmation = (
-        has_active_task and
-        is_touch_valid and
-        (is_confirm or is_object)
-    )
-    
-    # Jika user bertanya "apakah benar tombol ini?" dan semua kondisi terpenuhi
-    has_active_task = active_task_context != DEFAULT_TASK_CONTEXT
-    is_touch_valid = thumb_center and current_touched_fungsi != "tidak ada"
-
-    if is_asking_confirmation and has_active_task and is_touch_valid:
-        # Cek apakah tombol yang disentuh cocok dengan task menggunakan sinonim
+    if is_confirm and has_active_task and is_touch_valid:
         if is_target_matched(current_touched_fungsi, active_task_context):
             teks = "Iya, benar. Ini tombol yang tepat. Silakan tekan sekarang."
             _speak(teks)
-            active_task_context = DEFAULT_TASK_CONTEXT  # Reset setelah konfirmasi
+            active_task_context = DEFAULT_TASK_CONTEXT
             active_task_intent = None
             conversation_history.append({"role": "user", "content": user_text})
             conversation_history.append({"role": "assistant", "content": teks})
             return
-        # else:
-            # teks = f"Tidak, tombol ini salah. Geser jempol Anda ke tombol yang lain."
 
     # --- PERSIAPAN DATA PROMPT ---
     fungsi_tombol_saja = {
