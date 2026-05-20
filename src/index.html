@@ -21,6 +21,7 @@
             display: flex;
             flex-direction: column;
             height: 100vh;
+            touch-action: none;
         }
 
         h3 {
@@ -88,6 +89,7 @@
             flex: 1;
             overflow-y: auto;
             min-height: 0;
+            touch-action: auto;
         }
 
         .user-msg {
@@ -203,7 +205,8 @@
             micUI.classList.remove("active");
         }
 
-        const wsUrl = `ws://${window.location.host}/frontend_ws`;
+        const wsProtocol = window.location.protocol === 'https:' ? 'wss:' : 'ws:';
+        const wsUrl = `${wsProtocol}//${window.location.host}/frontend_ws`;
         const wsFrontend = new WebSocket(wsUrl);
 
         wsFrontend.onmessage = function (event) {
@@ -425,6 +428,8 @@
                     method: 'POST',
                     headers: { 'Content-Type': 'application/json' },
                     body: JSON.stringify({ text: "Letakkan remote di depan kamera untuk pemetaan layout. Tunggu sampai layout siap, lalu tekan dan tahan layar untuk berbicara." })
+                }).catch(err => {
+                    addLog("Error", "Gagal kirim TTS awal: " + err.message, "system-msg");
                 });
             } catch (err) {
                 addLog("Error", "Gagal akses kamera/mic: " + err.message, "system-msg");

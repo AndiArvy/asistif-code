@@ -11,12 +11,11 @@ import re
 from faster_whisper import WhisperModel
 import json
 from tts_cache import get_tts_cache
-global system_is_busy
 system_is_busy = False
 http_session = requests.Session()
 
 # --- IMPORT LOGIKA VLM DARI FILE TERPISAH ---
-import vision_reasoning as vision_reasoning
+import vision_reasoning
 from vision_reasoning import process_vlm_reasoning
 
 print("Memuat model Whisper...")
@@ -35,9 +34,7 @@ hold_to_speak_active = False
 hold_audio_buffer = bytearray()
 draining = False
 
-# --- FLAG UNTUK PAUSE AUDIO SAAT WHISPER INFERENCE ---
-global whisper_is_inferencing
-whisper_is_inferencing = False
+
 
 
 async def wait_until_layout_ready():

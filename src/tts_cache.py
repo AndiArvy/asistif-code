@@ -30,7 +30,8 @@ class TTSCache:
             try:
                 with open(self.cache_index_file, 'r', encoding='utf-8') as f:
                     self.cache_index = json.load(f)
-            except:
+            except (json.JSONDecodeError, OSError):
+                print(f"[TTS Cache] Warning: corrupted cache index, resetting.")
                 self.cache_index = {}
         else:
             self.cache_index = {}
@@ -109,6 +110,12 @@ class TTSCache:
             except Exception as e:
                 print(f"[TTS Cache] Error clearing cache: {e}")
     
+    def get_cache_dir(self):
+        return str(self.cache_dir)
+
+    def hash_text(self, text):
+        return self._text_to_hash(text)
+
     def get_cache_info(self):
         """Get information about cached files"""
         with self.lock:
@@ -126,10 +133,13 @@ class TTSCache:
 
 # Global cache instance
 _tts_cache_instance = None
+_tts_cache_lock = threading.Lock()
 
 def get_tts_cache():
     """Get or create the global TTS cache instance"""
     global _tts_cache_instance
     if _tts_cache_instance is None:
-        _tts_cache_instance = TTSCache("tts_cache")
+        with _tts_cache_lock:
+            if _tts_cache_instance is None:
+                _tts_cache_instance = TTSCache("tts_cache")
     return _tts_cache_instance

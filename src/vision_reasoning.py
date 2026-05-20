@@ -5,6 +5,7 @@ import numpy as np
 import torch
 import threading
 import time
+import os
 from PIL import Image, ImageDraw, ImageFont
 from rotate_remote import process_yolo_rotation
 from vision_models import get_vision_models
@@ -32,6 +33,12 @@ def ensure_models_loaded():
     if yolo_model is None or owl_processor is None or owl_model is None:
         yolo_model, owl_processor, owl_model = get_vision_models()
         print("Model sudah siap digunakan.")
+
+# =========================
+# KONFIGURASI
+# =========================
+WRITE_DEBUG = os.getenv("VISION_DEBUG", "true").lower() == "true"
+MAX_CONVERSATION_HISTORY = int(os.getenv("MAX_CONVERSATION_HISTORY", "20"))
 
 # =========================
 # VARIABEL GLOBAL (STATE)
@@ -322,6 +329,9 @@ Example Output:
 
     try:
         response = _safe_post(LM_STUDIO_URL, json=payload, timeout=60)
+        if not response:
+            print("[VLM] No response from LM Studio, skipping mapping.")
+            return layout_dict
         content = response.json()["choices"][0]["message"].get("content", "")
         mapped_functions = _extract_json_object(content) or {}
 
@@ -360,8 +370,8 @@ def auto_setup_layout(silent=True):
         # --- 3. PENGAMBILAN GAMBAR UTAMA (Setelah Stabil) ---
         _fire_and_forget_post(LOG_URL, json={"sender": "Sistem", "text": "Mengambil gambar jernih..."})
         frame_stabil = capture_current_frame()
-        cv2.imwrite("debug_frame.jpg", frame_stabil)
-        
+        if WRITE_DEBUG:
+            cv2.imwrite("debug_frame.jpg", frame_stabil)
             
         outputs_stabil = process_yolo_rotation(frame_stabil, yolo_model, target_class=CLASS_ID_REMOTE)
         remote_crop = outputs_stabil[0]["image"] if outputs_stabil else None
@@ -384,9 +394,8 @@ def auto_setup_layout(silent=True):
         MARGIN = 20  # Margin dalam pixel dari tepi frame
         frame_height, frame_width = frame_stabil.shape[:2]
         
-        # Cek bounding box remote dari YOLO di frame asli
-        results_margin_check = yolo_model(frame_stabil, classes=[CLASS_ID_REMOTE], verbose=False)
-        margin_boxes = _result_xyxy_list(results_margin_check[0])
+        # Pakai raw_boxes dari hasil YOLO yang sudah di-compute oleh process_yolo_rotation
+        margin_boxes = outputs_stabil[0].get("raw_boxes", [])
         if margin_boxes:
             for x1, y1, x2, y2 in margin_boxes:
                 
@@ -421,12 +430,14 @@ def auto_setup_layout(silent=True):
         _speak("Memetakan tombol remote, tunggu sampai berhasil...")
 
         reference_clean_b64 = cv2_to_base64(remote_crop)
-        cv2.imwrite("debug_clean_reference.jpg", remote_crop)
+        if WRITE_DEBUG:
+            cv2.imwrite("debug_clean_reference.jpg", remote_crop)
 
         indexed_cv, local_layout = generate_owl_layout(remote_crop)
         reference_indexed_image_cv = indexed_cv.copy()
         reference_indexed_b64 = cv2_to_base64(indexed_cv)
-        cv2.imwrite("debug_indexed_reference.jpg", indexed_cv)
+        if WRITE_DEBUG:
+            cv2.imwrite("debug_indexed_reference.jpg", indexed_cv)
 
         layout_data = map_functions_with_vlm(
             reference_clean_b64, reference_indexed_b64, local_layout
@@ -701,7 +712,7 @@ def process_vlm_reasoning(user_text):
 
     # --- 1-3. PREPROCESSING VISUAL: frame -> rotate -> deteksi jempol -> map ke layout ---
     with vision_processing_lock:
-        touch_info = detect_current_thumb_touch(write_debug=True)
+        touch_info = detect_current_thumb_touch(write_debug=WRITE_DEBUG)
 
     current_touched_fungsi = touch_info["current_touched_fungsi"]
     thumb_center = touch_info["thumb_center"]
@@ -889,10 +900,7 @@ EXPECTED OUTPUT EXAMPLES (NO MARKDOWN):
                         active_task_context = new_task
 
                 # Penyusunan kalimat navigasi
-                if intent == "exploration":
-                    teks = instruction
-                    active_task_context = DEFAULT_TASK_CONTEXT
-                elif is_new_task and target_location and intent == "navigation":
+                if is_new_task and target_location and intent == "navigation":
                     teks = f"Tombol tujuan berada di {target_location}. {instruction}"
                 else:
                     teks = f"{instruction}"
@@ -905,6 +913,9 @@ EXPECTED OUTPUT EXAMPLES (NO MARKDOWN):
             _speak(teks)
             conversation_history.append({"role": "user", "content": user_text})
             conversation_history.append({"role": "assistant", "content": teks})
+            # Batasi riwayat pesan terakhir untuk cegah memory leak
+            if len(conversation_history) > MAX_CONVERSATION_HISTORY:
+                conversation_history = conversation_history[-MAX_CONVERSATION_HISTORY:]
 
     except Exception as e:
         _fire_and_forget_post(LOG_URL, json={"sender": "Error", "text": f"Koneksi LLM gagal: {e}"})
