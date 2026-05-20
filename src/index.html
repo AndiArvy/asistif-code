@@ -69,39 +69,22 @@
             cursor: not-allowed;
         }
 
-        #holdToSpeakBtn {
-            width: 100%;
-            padding: 24px 16px;
-            font-size: 20px;
+        #listeningBadge {
+            text-align: center;
             font-weight: bold;
-            border: 2px solid #ff4444;
-            border-radius: 16px;
-            background: #2a0000;
-            color: #ff6666;
-            cursor: pointer;
-            touch-action: none;
-            transition: background 0.1s, transform 0.1s;
+            padding: 10px;
+            background: #1a1a1a;
+            border-radius: 8px;
             margin-bottom: 10px;
-            letter-spacing: 1px;
-            box-shadow: 0 4px 12px rgba(255, 0, 0, 0.15);
+            border: 1px solid #333;
+            color: #555;
+            transition: all 0.15s;
         }
 
-        #holdToSpeakBtn:active,
-        #holdToSpeakBtn.holding {
+        #listeningBadge.active {
             background: #cc0000;
             color: #fff;
             border-color: #ff0000;
-            transform: scale(0.97);
-            box-shadow: 0 2px 6px rgba(255, 0, 0, 0.4);
-        }
-
-        #holdToSpeakBtn:disabled {
-            background: #1a1a1a;
-            color: #555;
-            border-color: #333;
-            cursor: not-allowed;
-            transform: none;
-            box-shadow: none;
         }
 
         #chatLog {
@@ -139,7 +122,7 @@
         </div>
     </div>
 
-    <button id="holdToSpeakBtn" type="button">🔴 TEKAN & TAHAN untuk bicara</button>
+    <div id="listeningBadge">👆 Tekan & tahan layar untuk bicara</div>
 
     <audio id="remoteAudio" autoplay></audio>
 
@@ -172,7 +155,7 @@
         const localVideo = document.getElementById('localVideo');
         const switchCameraBtn = document.getElementById('switchCameraBtn');
         const torchBtn = document.getElementById('torchBtn');
-        const holdBtn = document.getElementById('holdToSpeakBtn');
+        const listeningBadge = document.getElementById('listeningBadge');
 
         function setMicEnabled(enabled) {
             if (!localStream) return;
@@ -206,8 +189,8 @@
                 wsFrontend.send(JSON.stringify({type: "hold_action", action: "start_listening"}));
             }
 
-            holdBtn.classList.add("holding");
-            holdBtn.innerText = "🎙️ BICARA SEKARANG...";
+            listeningBadge.classList.add("active");
+            listeningBadge.innerText = "🎙️ MENDENGARKAN...";
         }
 
         function stopHolding() {
@@ -220,31 +203,9 @@
                 wsFrontend.send(JSON.stringify({type: "hold_action", action: "stop_listening"}));
             }
 
-            holdBtn.classList.remove("holding");
-            holdBtn.innerText = "🔴 TEKAN & TAHAN untuk bicara";
+            listeningBadge.classList.remove("active");
+            listeningBadge.innerText = "👆 Tekan & tahan layar untuk bicara";
         }
-
-        holdBtn.addEventListener('pointerdown', (e) => {
-            e.preventDefault();
-            holdBtn.setPointerCapture(e.pointerId);
-            startHolding();
-        });
-
-        holdBtn.addEventListener('pointerup', (e) => {
-            e.preventDefault();
-            holdBtn.releasePointerCapture(e.pointerId);
-            stopHolding();
-        });
-
-        holdBtn.addEventListener('pointercancel', (e) => {
-            stopHolding();
-        });
-
-        holdBtn.addEventListener('pointerleave', (e) => {
-            if (isHolding && e.pointerType === 'mouse') {
-                stopHolding();
-            }
-        });
 
         const wsUrl = `ws://${window.location.host}/frontend_ws`;
         const wsFrontend = new WebSocket(wsUrl);
@@ -420,35 +381,24 @@
             }
         }
 
-        function setupHoldButton() {
-            holdBtn.addEventListener('pointerdown', (e) => {
-                e.preventDefault();
-                holdBtn.setPointerCapture(e.pointerId);
-                startHolding();
-            });
+        document.addEventListener('pointerdown', (e) => {
+            if (e.target.tagName === 'BUTTON') return;
+            e.preventDefault();
+            startHolding();
+        });
 
-            holdBtn.addEventListener('pointerup', (e) => {
-                e.preventDefault();
-                holdBtn.releasePointerCapture(e.pointerId);
-                stopHolding();
-            });
+        document.addEventListener('pointerup', () => {
+            if (isHolding) stopHolding();
+        });
 
-            holdBtn.addEventListener('pointercancel', (e) => {
-                stopHolding();
-            });
-
-            document.addEventListener('pointerup', (e) => {
-                if (isHolding) {
-                    stopHolding();
-                }
-            });
-        }
+        document.addEventListener('pointercancel', () => {
+            if (isHolding) stopHolding();
+        });
 
         async function start() {
             addLog("Sistem", "Meminta izin kamera & mic...", "system-msg");
             switchCameraBtn.disabled = true;
             torchBtn.disabled = true;
-            holdBtn.disabled = true;
             updateTorchButtonState();
             try {
                 localStream = await createInitialStream();
@@ -467,7 +417,6 @@
                 switchCameraBtn.disabled = false;
                 const videoTrack = localStream.getVideoTracks()[0];
                 torchBtn.disabled = !canToggleTorch(videoTrack);
-                holdBtn.disabled = false;
                 addLog("Sistem", "Koneksi WebRTC Berhasil!", "system-msg");
 
                 fetch('/trigger_tts', {
@@ -479,8 +428,6 @@
                 addLog("Error", "Gagal akses kamera/mic: " + err.message, "system-msg");
             }
         }
-
-        setupHoldButton();
 
         switchCameraBtn.addEventListener("click", switchCamera);
         torchBtn.addEventListener("click", toggleTorch);
