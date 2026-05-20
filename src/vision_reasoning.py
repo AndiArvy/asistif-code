@@ -114,8 +114,6 @@ ALLOWED_FUNCTIONS = sorted(set(
     for word in group
 ))
 
-
-
 def _result_xyxy_list(result):
     """Normalize YOLO detection outputs into xyxy integer boxes."""
     boxes = []
@@ -370,18 +368,20 @@ def auto_setup_layout(silent=True):
         
         if remote_crop is None:
             _speak("Remote hilang dari pandangan. Silakan arahkan lagi.")
+            time.sleep(2.0) 
             return False
 
         # --- 4. VALIDASI UKURAN GAMBAR (Jarak Remote) ---
         tinggi, lebar = remote_crop.shape[:2]
         luas_area = tinggi * lebar
         
-        if luas_area < 40000: # Threshold luas (bisa disesuaikan nanti)
+        if luas_area < 60000: # Threshold luas (bisa disesuaikan nanti)
             _speak("Terlalu jauh. Dekatkan sedikit.")
+            time.sleep(2.0) 
             return False
 
         # --- 4b. VALIDASI MARGIN REMOTE (Tidak Terlalu Dekat Tepi Frame) ---
-        MARGIN = 3  # Margin dalam pixel dari tepi frame
+        MARGIN = 20  # Margin dalam pixel dari tepi frame
         frame_height, frame_width = frame_stabil.shape[:2]
         
         # Cek bounding box remote dari YOLO di frame asli
@@ -407,16 +407,18 @@ def auto_setup_layout(silent=True):
                         # Hanya satu sisi terpotong, bilang sisi mana
                         sisi = clipped_sides[0]
                         message = f"bagian {sisi} terpotong."
+                        time.sleep(2.0) 
                     else:
                         # Lebih dari satu sisi terpotong, bilang generic
                         message = "Terlalu dekat, Jauhkan sedikit."
+                        time.sleep(2.0) 
                     
                     _speak(message)
                     return False
 
         # --- 5. EKSTRAKSI LAYOUT & MAPPING VLM ---
         _fire_and_forget_post(LOG_URL, json={"sender": "Sistem", "text": "Kamera stabil! Mengunci gambar dan mengekstrak layout..."})
-        _speak("Memetakan tombol remote...")
+        _speak("Memetakan tombol remote, tunggu sampai berhasil...")
 
         reference_clean_b64 = cv2_to_base64(remote_crop)
         cv2.imwrite("debug_clean_reference.jpg", remote_crop)
@@ -438,6 +440,7 @@ def auto_setup_layout(silent=True):
 
     if not silent:
         _speak("Remote belum terlihat. Coba arahkan kamera lagi.")
+        time.sleep(2.0) 
     return False
 
 
