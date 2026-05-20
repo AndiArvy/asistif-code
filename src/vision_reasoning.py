@@ -562,12 +562,13 @@ def detect_current_thumb_touch(write_debug=False):
         y2 = int((by + bh) * sy)
 
         cv2.rectangle(current_drawn_cv, (x1, y1), (x2, y2), (0, 255, 0), 2)
+        (tw, th), _ = cv2.getTextSize(indeks, cv2.FONT_HERSHEY_SIMPLEX, 1.5, 2)
         label_x = max(0, x1 + 4)
-        label_y = max(30, y1 + 28)
+        label_y = max(th + 8, y1 + th + 8)
         cv2.rectangle(
             current_drawn_cv,
-            (label_x - 4, label_y - 24),
-            (label_x + 60, label_y + 6),
+            (label_x - 4, label_y - th - 4),
+            (label_x + tw + 4, label_y + 4),
             (0, 0, 0),
             -1,
         )
@@ -583,11 +584,11 @@ def detect_current_thumb_touch(write_debug=False):
         )
 
     if thumb_center:
-        cv2.circle(current_drawn_cv, thumb_center, radius=8, color=(0, 0, 255), thickness=-1)
+        cv2.circle(current_drawn_cv, thumb_center, radius=24, color=(0, 0, 255), thickness=-1)
 
         rel_x = int((thumb_center[0] / w_curr) * w_ref)
         rel_y = int((thumb_center[1] / h_curr) * h_ref)
-        cv2.circle(reference_drawn_cv, (rel_x, rel_y), radius=8, color=(0, 0, 255), thickness=-1)
+        cv2.circle(reference_drawn_cv, (rel_x, rel_y), radius=24, color=(0, 0, 255), thickness=-1)
 
         padding = 15
         for indeks, data in layout_data.items():
@@ -886,6 +887,8 @@ EXPECTED OUTPUT EXAMPLES (NO MARKDOWN):
             teks = "Maaf, panduan terputus. Bisa ulangi?"
 
         if teks:
+            teks = re.sub(r'\bb\d+\b', '', teks)
+            teks = re.sub(r'\s+', ' ', teks).strip()
             _speak(teks)
             conversation_history.append({"role": "user", "content": user_text})
             conversation_history.append({"role": "assistant", "content": teks})
