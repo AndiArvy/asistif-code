@@ -86,10 +86,10 @@ SYNONYM_GROUPS = [
     ["light", "lampu", "display", "led", "layar"],
 
     # Timer On
-    ["timer on", "on timer", "timer nyala", "waktu nyala", "waktu on"],
+    ["timer on", "timer_on", "on timer", "timer nyala", "waktu nyala", "waktu on"],
 
     # Timer Off
-    ["timer off", "off timer", "timer mati", "waktu mati", "waktu off"],
+    ["timer off", "timer_off", "off timer", "timer mati", "waktu mati", "waktu off"],
 
     # Timer Naik
     ["timer naik", "tambah waktu", "waktu naik", "durasi naik"],
@@ -179,7 +179,7 @@ def generate_owl_layout(cv2_image):
 
     target_sizes = torch.tensor([pil_img.size[::-1]])
     results = owl_processor.post_process_grounded_object_detection(
-        outputs=outputs, target_sizes=target_sizes, threshold=0.09
+        outputs=outputs, target_sizes=target_sizes, threshold=0.1
     )[0]
 
     remotes, buttons = [], []
@@ -221,7 +221,7 @@ def generate_owl_layout(cv2_image):
     # --- LOGIKA DRAWING ASLI ANDA (TIDAK DIUBAH) ---
     draw = ImageDraw.Draw(pil_img)
     try:
-        font = ImageFont.truetype("arial.ttf", 27)
+        font = ImageFont.truetype("arial.ttf", 30)
     except:
         font = ImageFont.load_default()
 
@@ -237,12 +237,12 @@ def generate_owl_layout(cv2_image):
         }
 
         # Menggambar kotak lime
-        draw.rectangle(box, outline="lime", width=3)
+        draw.rectangle(box, outline="lime", width=4)
         
-        # Logika teks: Teks di posisi (x+3, y+3), dengan background hitam rectangle
-        text_pos = (box[0] + 3, box[1] + 3)
+        # Logika teks: Teks di posisi (x+4, y+4), dengan background hitam rectangle
+        text_pos = (box[0] + 4, box[1] + 4)
         # Menghitung perkiraan area background hitam agar teks arial tidak tumpang tindih
-        draw.rectangle([text_pos, (text_pos[0] + 45, text_pos[1] + 30)], fill="black")
+        draw.rectangle([text_pos, (text_pos[0] + 52, text_pos[1] + 34)], fill="black")
         draw.text(text_pos, indeks, fill="lime", font=font)
         button_counter += 1
 
@@ -805,7 +805,7 @@ EXPECTED OUTPUT EXAMPLES (NO MARKDOWN):
 
 {{"intent": "navigation", "updated_task": "power", "target_location_desc": "pojok kanan atas", "instruction": "Untuk menyalakan AC, raba tombol di pojok kanan atas."}}
 
-{{"intent": "navigation", "updated_task": "temp_down", "target_location_desc": "tengah bawah", "instruction": "Untuk menurunkan suhu, geser jempol Anda ke bawah menuju bagian tengah remote."}}
+{{"intent": "navigation", "updated_task": "temp down", "target_location_desc": "tengah bawah", "instruction": "Untuk menurunkan suhu, geser jempol Anda ke bawah menuju bagian tengah remote."}}
 
 {{"intent": "question", "updated_task": "none", "target_location_desc": "N/A", "instruction": "Suhu di layar saat ini 24 derajat dengan mode cool, kecepatan kipas tampak rendah."}}
 """
