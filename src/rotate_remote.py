@@ -1,6 +1,7 @@
 import cv2
 import numpy as np
 import math
+import os
 
 def rotate_image(mat, angle):
     height, width = mat.shape[:2]
@@ -36,10 +37,10 @@ def _process_with_obb(img, result):
         
         # 1. Konversi sudut ke derajat
         angle_deg = math.degrees(angle_rad)
-        
-        # CATATAN PENTING: Jika hasil crop masih miring/terpotong secara diagonal,
-        # itu berarti arah rotasi YOLO dan OpenCV berlawanan. Cukup ubah baris di atas menjadi:
-        # angle_deg = -math.degrees(angle_rad)
+
+        # Jika YOLO OBB dan OpenCV berlawanan arah, balik sudutnya
+        if INVERT_OBB_ANGLE:
+            angle_deg = -angle_deg
         
         # 2. Hitung garis diagonal (Sisi miring)
         # Ini adalah batas ruang paling aman agar objek bisa berputar bebas tanpa terpotong
@@ -86,9 +87,10 @@ def _process_with_obb(img, result):
             continue
             
         # 7. Lock selalu Portrait (Jika objek melebar / landscape, putar ke portrait)
-        ch, cw = crop.shape[:2]
-        if cw > ch:
-            crop = cv2.rotate(crop, cv2.ROTATE_90_CLOCKWISE)
+        if FORCE_PORTRAIT:
+            ch, cw = crop.shape[:2]
+            if cw > ch:
+                crop = cv2.rotate(crop, cv2.ROTATE_90_CLOCKWISE)
             
         results_list.append({"image": crop, "angle": angle_deg, "index": i})
         
@@ -111,9 +113,10 @@ def _process_with_axis_aligned(img, result):
         crop = img[y1:y2, x1:x2]
         if crop is None or crop.size == 0:
             continue
-        h, w = crop.shape[:2]
-        if w > h:
-            crop = cv2.rotate(crop, cv2.ROTATE_90_CLOCKWISE)
+        if FORCE_PORTRAIT:
+            h, w = crop.shape[:2]
+            if w > h:
+                crop = cv2.rotate(crop, cv2.ROTATE_90_CLOCKWISE)
         results_list.append({"image": crop, "angle": 0, "index": i})
     return results_list
 
@@ -122,17 +125,56 @@ def process_yolo_rotation(img, model, target_class=1):
     """
     Return portrait remote crops.
     Uses YOLO OBB output when available; falls back to axis-aligned boxes.
+    Returns: list of dicts with keys: image, angle, index, raw_boxes
     """
     if img is None:
         return []
 
-    results = model.predict(img, classes=[target_class], verbose=False, conf=0.3)
+    results = model.predict(img, classes=[target_class], verbose=False, conf=CONF_THRESHOLD)
     if not results:
         return []
 
     result = results[0]
+    raw_boxes = _result_xyxy_list(result)
+
     obb_results = _process_with_obb(img, result)
     if obb_results:
+        for item in obb_results:
+            item["raw_boxes"] = raw_boxes
         return obb_results
 
-    return _process_with_axis_aligned(img, result)
+    axis_results = _process_with_axis_aligned(img, result)
+    for item in axis_results:
+        item["raw_boxes"] = raw_boxes
+    return axis_results
+
+
+# --- KONFIGURASI ---
+CONF_THRESHOLD = float(os.getenv("YOLO_CONF_THRESHOLD", "0.3"))
+FORCE_PORTRAIT = os.getenv("YOLO_FORCE_PORTRAIT", "true").lower() == "true"
+INVERT_OBB_ANGLE = os.getenv("YOLO_INVERT_OBB_ANGLE", "false").lower() == "true"
+
+
+def _result_xyxy_list(result):
+    """Normalize YOLO detection outputs into xyxy integer boxes."""
+    boxes = []
+    obb = getattr(result, "obb", None)
+    if obb is not None and len(obb) > 0:
+        polys = obb.xyxyxyxy.cpu().numpy()
+        for poly in polys:
+            pts = np.array(poly).reshape(-1, 2)
+            x_coords = pts[:, 0]
+            y_coords = pts[:, 1]
+            boxes.append((
+                int(np.min(x_coords)),
+                int(np.min(y_coords)),
+                int(np.max(x_coords)),
+                int(np.max(y_coords)),
+            ))
+        return boxes
+
+    axis_boxes = getattr(result, "boxes", None)
+    if axis_boxes is not None and len(axis_boxes) > 0:
+        for box in axis_boxes:
+            boxes.append(tuple(map(int, box.xyxy[0].cpu().numpy())))
+    return boxes

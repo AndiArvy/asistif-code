@@ -20,11 +20,13 @@ latest_jpeg = None  # Menyimpan frame video terakhir
 audio_clients = set()  # Menyimpan client Python yang mendengarkan audio
 tts_cache = get_tts_cache()  # Initialize TTS cache
 TTS_PLAYBACK_RATE = float(os.getenv("TTS_PLAYBACK_RATE", "1.2"))
+JPEG_QUALITY = int(os.getenv("JPEG_QUALITY", "99"))
 
 
 # --- 1. RUTE HALAMAN UTAMA (UI HP) ---
 async def index(request):
-    content = open(os.path.join(os.path.dirname(__file__), "index.html"), "r", encoding="utf-8").read()
+    with open(os.path.join(os.path.dirname(__file__), "index.html"), "r", encoding="utf-8") as f:
+        content = f.read()
     return web.Response(content_type="text/html", text=content)
 
 
@@ -101,14 +103,14 @@ async def offer(request):
                         frame = await track.recv()
                         img = frame.to_ndarray(format="bgr24")
                         ret, buffer = cv2.imencode(
-                            ".jpg", img, [cv2.IMWRITE_JPEG_QUALITY, 99]
+                            ".jpg", img, [cv2.IMWRITE_JPEG_QUALITY, JPEG_QUALITY]
                         )
                         if ret:
                             latest_jpeg = buffer.tobytes()
                     except Exception:
                         break
 
-            asyncio.ensure_future(consume_video())
+            asyncio.create_task(consume_video())
 
         # TANGKAP AUDIO
         elif track.kind == "audio":
@@ -137,7 +139,7 @@ async def offer(request):
                         print("Stream audio berhenti:", e)
                         break
 
-            asyncio.ensure_future(consume_audio())
+            asyncio.create_task(consume_audio())
 
     await pc.setRemoteDescription(offer)
     answer = await pc.createAnswer()
@@ -182,6 +184,16 @@ async def trigger_tts(request):
         audio_b64 = None
         
         # Check if cached file is provided
+        if use_cache and cache_file:
+            # --- VALIDASI PATH TRAVERSAL: pastikan cache_file di dalam cache_dir ---
+            cache_file_resolved = Path(cache_file).resolve()
+            cache_dir_resolved = Path(tts_cache.get_cache_dir()).resolve()
+            try:
+                cache_file_resolved.relative_to(cache_dir_resolved)
+            except ValueError:
+                print(f"[TTS] Security: rejected path traversal attempt: {cache_file}")
+                cache_file = None
+
         if use_cache and cache_file and os.path.exists(cache_file):
             print(f"[TTS] Loading cached audio from: {cache_file}")
             try:
@@ -204,8 +216,8 @@ async def trigger_tts(request):
                 
                 # Cache the generated audio
                 try:
-                    cache_filename = tts_cache._text_to_hash(teks) + ".mp3"
-                    cache_filepath = os.path.join(tts_cache.cache_dir, cache_filename)
+                    cache_filename = tts_cache.hash_text(teks) + ".mp3"
+                    cache_filepath = os.path.join(tts_cache.get_cache_dir(), cache_filename)
                     
                     with open(cache_filepath, 'wb') as f:
                         f.write(fp.getvalue())
@@ -246,7 +258,10 @@ async def send_log(request):
 
     # Teruskan log ini ke HP via WebSocket frontend
     for ws in list(frontend_clients):
-        await ws.send_json({"type": "log", "sender": sender, "text": text})
+        try:
+            await ws.send_json({"type": "log", "sender": sender, "text": text})
+        except Exception:
+            pass
 
     return web.Response(text="Log terkirim ke HP")
 
@@ -328,8 +343,8 @@ async def preload_common_tts():
                 tts.write_to_fp(fp)
                 
                 # Save to cache
-                cache_filename = tts_cache._text_to_hash(phrase) + ".mp3"
-                cache_filepath = os.path.join(tts_cache.cache_dir, cache_filename)
+                cache_filename = tts_cache.hash_text(phrase) + ".mp3"
+                cache_filepath = os.path.join(tts_cache.get_cache_dir(), cache_filename)
                 
                 with open(cache_filepath, 'wb') as f:
                     f.write(fp.getvalue())
@@ -379,5 +394,10 @@ if __name__ == "__main__":
     
     app.router.add_post("/preload_tts", preload_tts_endpoint)
     
-    print("Server Utama WebRTC: http://localhost:8080")
-    web.run_app(app, host="0.0.0.0", port=8080)
+    SERVER_HOST = os.getenv("SERVER_HOST", "0.0.0.0")
+    SERVER_PORT = int(os.getenv("SERVER_PORT", "8080"))
+    print(f"Server Utama WebRTC: http://{SERVER_HOST}:{SERVER_PORT}")
+    if SERVER_HOST == "0.0.0.0":
+        print("  Peringatan: server bind ke semua interface (0.0.0.0).")
+        print("  Set env SERVER_HOST=127.0.0.1 untuk localhost saja.")
+    web.run_app(app, host=SERVER_HOST, port=SERVER_PORT)

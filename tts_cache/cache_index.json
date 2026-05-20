@@ -2458,5 +2458,50 @@
     "text": "Suhu di layar saat ini adalah 30 derajat.",
     "filename": "10a802cff98aa74b9f66562de8ff147f.mp3",
     "hash": "10a802cff98aa74b9f66562de8ff147f"
+  },
+  "2db2c269b7ddbd9d77b00efdef2ecf54": {
+    "text": "Ini adalah tombol suhu naik/turun.",
+    "filename": "2db2c269b7ddbd9d77b00efdef2ecf54.mp3",
+    "hash": "2db2c269b7ddbd9d77b00efdef2ecf54"
+  },
+  "af1b6d1392472384b57e25411cae88de": {
+    "text": "Tombol tujuan berada di pojok kanan atas. Untuk mengatur kecepatan kipas, raba tombol di pojok kanan atas.",
+    "filename": "af1b6d1392472384b57e25411cae88de.mp3",
+    "hash": "af1b6d1392472384b57e25411cae88de"
+  },
+  "b3c5b486b4ce46acbe7c600fcd803c1e": {
+    "text": "Kecepatan kipas saat ini sedang rendah, ditandai dengan satu baris kecil di sebelah kiri layar.",
+    "filename": "b3c5b486b4ce46acbe7c600fcd803c1e.mp3",
+    "hash": "b3c5b486b4ce46acbe7c600fcd803c1e"
+  },
+  "4903ae6a9783820874fb84f441e42535": {
+    "text": "Suhu di layar saat ini 24 derajat dengan mode cool, dan indikator bar grafik menunjukkan tingkat kecepatan kipas sedang tinggi.",
+    "filename": "4903ae6a9783820874fb84f441e42535.mp3",
+    "hash": "4903ae6a9783820874fb84f441e42535"
+  },
+  "85f949445899bf2adb5bf2e1d0762f49": {
+    "text": "Tombol tujuan berada di pojok kanan atas. Untuk mengganti mode AC (misalnya dari dingin ke kipas), raba tombol di pojok kanan atas.",
+    "filename": "85f949445899bf2adb5bf2e1d0762f49.mp3",
+    "hash": "85f949445899bf2adb5bf2e1d0762f49"
+  },
+  "dbda2491b7f2cba267aec97ea286da9e": {
+    "text": "Tombol tujuan berada di tengah atas. Untuk mengubah suhu, raba tombol di tengah bagian atas remote.",
+    "filename": "dbda2491b7f2cba267aec97ea286da9e.mp3",
+    "hash": "dbda2491b7f2cba267aec97ea286da9e"
+  },
+  "4bddc86ea03741ae496e465df46ed448": {
+    "text": "Suhu di layar saat ini adalah 26 derajat, bukan 27.",
+    "filename": "4bddc86ea03741ae496e465df46ed448.mp3",
+    "hash": "4bddc86ea03741ae496e465df46ed448"
+  },
+  "16be770715258cb2a4f00a5a0cee3fc5": {
+    "text": "Suhu di layar saat ini adalah 27 derajat dengan mode pendingin (cool).",
+    "filename": "16be770715258cb2a4f00a5a0cee3fc5.mp3",
+    "hash": "16be770715258cb2a4f00a5a0cee3fc5"
+  },
+  "f9c85b08fde1258d9852b936ee091f68": {
+    "text": "Tombol yang Anda sentuh saat ini adalah tombol 'heating' (pemanas).",
+    "filename": "f9c85b08fde1258d9852b936ee091f68.mp3",
+    "hash": "f9c85b08fde1258d9852b936ee091f68"
   }
 }

@@ -4,6 +4,7 @@ import json
 import numpy as np
 import requests
 import threading
+from concurrent.futures import ThreadPoolExecutor
 from tts_cache import get_tts_cache
 
 LM_STUDIO_URL = "http://localhost:1234/v1/chat/completions"
@@ -12,6 +13,7 @@ TTS_TRIGGER_URL = "http://localhost:8080/trigger_tts"
 LOG_URL = "http://localhost:8080/send_log"
 
 _request_session = requests.Session()
+_thread_pool = ThreadPoolExecutor(max_workers=4)
 
 
 def safe_post(url, **kwargs):
@@ -25,14 +27,12 @@ def safe_post(url, **kwargs):
 def _background_post_worker(url, kwargs):
     try:
         _request_session.post(url, timeout=kwargs.pop("timeout", 5), **kwargs)
-    except Exception:
-        pass
+    except Exception as e:
+        print(f"[Warning] Background POST gagal ke {url}: {e}")
 
 
 def fire_and_forget_post(url, **kwargs):
-    thread = threading.Thread(target=_background_post_worker, args=(url, kwargs))
-    thread.daemon = True
-    thread.start()
+    _thread_pool.submit(_background_post_worker, url, kwargs)
 
 
 def capture_current_frame():
@@ -76,13 +76,21 @@ def extract_json_object(text):
         return json.loads(text)
     except Exception:
         pass
-    start_idx = text.find("{")
-    end_idx = text.rfind("}")
-    if start_idx != -1 and end_idx != -1 and end_idx > start_idx:
-        try:
-            return json.loads(text[start_idx : end_idx + 1])
-        except Exception:
-            return None
+    # Cari brace terluar dengan depth-counting
+    depth = 0
+    start_idx = -1
+    for i, ch in enumerate(text):
+        if ch == "{":
+            if depth == 0:
+                start_idx = i
+            depth += 1
+        elif ch == "}":
+            depth -= 1
+            if depth == 0 and start_idx != -1:
+                try:
+                    return json.loads(text[start_idx : i + 1])
+                except Exception:
+                    return None
     return None
 
 

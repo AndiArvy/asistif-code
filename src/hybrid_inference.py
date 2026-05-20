@@ -4,7 +4,7 @@ import requests
 import json
 import re
 
-import vision_reasoning as vision_reasoning
+import vision_reasoning
 from vision_reasoning import process_vlm_reasoning
 
 # --- KONFIGURASI ---
@@ -25,7 +25,8 @@ async def run_vlm_logic(text, source="Manual"):
         await asyncio.to_thread(
             lambda: requests.post(LOG_URI, json={"sender": source, "text": text}, timeout=1)
         )
-    except: pass
+    except Exception:
+        pass
 
     # Jalankan VLM Reasoning
     await asyncio.to_thread(process_vlm_reasoning, text)
@@ -45,8 +46,11 @@ async def listen_to_tap_commands():
                         continue
                     # Jika ada sinyal tap, jalankan logika VLM
                     asyncio.create_task(run_vlm_logic(data["text"], source="Tap Layar"))
-        except:
-            await asyncio.sleep(2) # Reconnect jika gagal
+        except websockets.exceptions.WebSocketException:
+            await asyncio.sleep(2)
+        except Exception as e:
+            print(f"[listen_to_tap_commands] Error: {e}")
+            await asyncio.sleep(2)
 
 async def manual_input_loop():
     """Menerima input ketik dari terminal"""
