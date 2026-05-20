@@ -676,6 +676,13 @@ def process_vlm_reasoning(user_text):
 
 
     normalized_text = re.sub(r"\s+", " ", user_text.lower()).strip()
+
+    # Flashlight voice control (tidak perlu VLM)
+    if any(kata in normalized_text for kata in ["senter", "flash", "flashlight", "lampu senter", "torch"]):
+        _fire_and_forget_post(LOG_URL, json={"sender": "Control", "text": "TOGGLE_FLASH"})
+        _speak("Senter")
+        return
+
     if any(phrase in normalized_text for phrase in ["reset layout", "ulang layout", "ganti remote", "remote baru"]):
         is_layout_ready = False
         active_task_context = DEFAULT_TASK_CONTEXT
