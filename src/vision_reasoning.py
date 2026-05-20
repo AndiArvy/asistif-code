@@ -562,12 +562,12 @@ def detect_current_thumb_touch(write_debug=False):
         y2 = int((by + bh) * sy)
 
         cv2.rectangle(current_drawn_cv, (x1, y1), (x2, y2), (0, 255, 0), 2)
-        label_x = max(0, x1 + 2)
-        label_y = max(20, y1 + 18)
+        label_x = max(0, x1 + 4)
+        label_y = max(30, y1 + 28)
         cv2.rectangle(
             current_drawn_cv,
-            (label_x - 2, label_y - 16),
-            (label_x + 34, label_y + 2),
+            (label_x - 4, label_y - 24),
+            (label_x + 60, label_y + 6),
             (0, 0, 0),
             -1,
         )
@@ -576,9 +576,9 @@ def detect_current_thumb_touch(write_debug=False):
             indeks,
             (label_x, label_y),
             cv2.FONT_HERSHEY_SIMPLEX,
-            0.5,
+            1.5,
             (0, 255, 0),
-            1,
+            2,
             cv2.LINE_AA,
         )
 
