@@ -69,7 +69,7 @@
             cursor: not-allowed;
         }
 
-        #listeningBadge {
+        #micStatus {
             text-align: center;
             font-weight: bold;
             padding: 10px;
@@ -77,14 +77,11 @@
             border-radius: 8px;
             margin-bottom: 10px;
             border: 1px solid #333;
-            color: #555;
-            transition: all 0.15s;
+            color: #ffeb3b;
         }
 
-        #listeningBadge.active {
-            background: #cc0000;
-            color: #fff;
-            border-color: #ff0000;
+        #micStatus.active {
+            color: #00e676;
         }
 
         #chatLog {
@@ -122,7 +119,7 @@
         </div>
     </div>
 
-    <div id="listeningBadge">👆 Tekan & tahan layar untuk bicara</div>
+    <div id="micStatus">🎤 Mic: MATI</div>
 
     <audio id="remoteAudio" autoplay></audio>
 
@@ -155,7 +152,7 @@
         const localVideo = document.getElementById('localVideo');
         const switchCameraBtn = document.getElementById('switchCameraBtn');
         const torchBtn = document.getElementById('torchBtn');
-        const listeningBadge = document.getElementById('listeningBadge');
+        const micUI = document.getElementById('micStatus');
 
         function setMicEnabled(enabled) {
             if (!localStream) return;
@@ -189,8 +186,8 @@
                 wsFrontend.send(JSON.stringify({type: "hold_action", action: "start_listening"}));
             }
 
-            listeningBadge.classList.add("active");
-            listeningBadge.innerText = "🎙️ MENDENGARKAN...";
+            micUI.innerText = "🎤 Mic: AKTIF";
+            micUI.classList.add("active");
         }
 
         function stopHolding() {
@@ -203,8 +200,8 @@
                 wsFrontend.send(JSON.stringify({type: "hold_action", action: "stop_listening"}));
             }
 
-            listeningBadge.classList.remove("active");
-            listeningBadge.innerText = "👆 Tekan & tahan layar untuk bicara";
+            micUI.innerText = "🎤 Mic: MATI";
+            micUI.classList.remove("active");
         }
 
         const wsUrl = `ws://${window.location.host}/frontend_ws`;
@@ -235,6 +232,12 @@
                 if (data.text) addLog("Sistem AI", data.text, "ai-msg");
             }
             else if (data.type === "log") {
+                if (data.sender === "Control") {
+                    if (data.text === "TOGGLE_FLASH") {
+                        toggleTorch();
+                    }
+                    return;
+                }
                 addLog(data.sender, data.text, data.sender === "User" ? "user-msg" : "system-msg");
             }
         };
@@ -422,7 +425,7 @@
                 fetch('/trigger_tts', {
                     method: 'POST',
                     headers: { 'Content-Type': 'application/json' },
-                    body: JSON.stringify({ text: "Letakkan  dan tunjukkan remote di depan kamera untuk pengambilan layout" })
+                    body: JSON.stringify({ text: "Letakkan remote di depan kamera untuk pemetaan layout. Tunggu sampai layout siap, lalu tekan dan tahan layar untuk berbicara." })
                 });
             } catch (err) {
                 addLog("Error", "Gagal akses kamera/mic: " + err.message, "system-msg");
