@@ -7,6 +7,9 @@
     <style>
         * {
             box-sizing: border-box;
+            -webkit-user-select: none;
+            user-select: none;
+            -webkit-touch-callout: none;
         }
 
         body {
@@ -18,7 +21,6 @@
             display: flex;
             flex-direction: column;
             height: 100vh;
-            /* overflow: hidden; */
         }
 
         h3 {
@@ -29,10 +31,9 @@
         }
 
         .top-panel {
-            display: flex; 
+            display: flex;
             gap: 15px;
             margin-bottom: 15px;
-            /* flex-shrink: 0; */
         }
 
         #localVideo {
@@ -68,26 +69,45 @@
             cursor: not-allowed;
         }
 
-        #micStatus {
-            text-align: center;
+        #holdToSpeakBtn {
+            width: 100%;
+            padding: 24px 16px;
+            font-size: 20px;
             font-weight: bold;
-            padding: 10px;
-            background: #1a1a1a;
-            border-radius: 8px;
+            border: 2px solid #ff4444;
+            border-radius: 16px;
+            background: #2a0000;
+            color: #ff6666;
+            cursor: pointer;
+            touch-action: none;
+            transition: background 0.1s, transform 0.1s;
             margin-bottom: 10px;
-            border: 1px solid #333;
-            color: #00e676;
+            letter-spacing: 1px;
+            box-shadow: 0 4px 12px rgba(255, 0, 0, 0.15);
+        }
+
+        #holdToSpeakBtn:active,
+        #holdToSpeakBtn.holding {
+            background: #cc0000;
+            color: #fff;
+            border-color: #ff0000;
+            transform: scale(0.97);
+            box-shadow: 0 2px 6px rgba(255, 0, 0, 0.4);
+        }
+
+        #holdToSpeakBtn:disabled {
+            background: #1a1a1a;
+            color: #555;
+            border-color: #333;
+            cursor: not-allowed;
+            transform: none;
+            box-shadow: none;
         }
 
         #chatLog {
             flex: 1;
             overflow-y: auto;
             min-height: 0;
-            /* background: #222;
-            padding: 12px;
-            border-radius: 8px;
-            font-size: 14px;
-            border: 1px solid #333; */
         }
 
         .user-msg {
@@ -116,13 +136,13 @@
         <div class="controls">
             <button id="switchCameraBtn" type="button">Ganti Kamera</button>
             <button id="torchBtn" type="button">Flashlight: OFF</button>
-            <div id="micStatus">🎤 Mic: AKTIF</div>
         </div>
     </div>
 
+    <button id="holdToSpeakBtn" type="button">🔴 TEKAN & TAHAN untuk bicara</button>
+
     <audio id="remoteAudio" autoplay></audio>
 
-    
     <div id="chatLog">
         <div class="system-msg">[Sistem]: Menunggu koneksi...</div>
     </div>
@@ -134,55 +154,30 @@
         let videoSender = null;
         let currentFacingMode = "environment";
         let torchEnabled = false;
-        let activeTtsPlaybackCount = 0;
-        // Buat SATU player permanen
-        const ttsPlayer = new Audio();
         let isTtsPlaying = false;
+        let isHolding = false;
         const defaultTtsPlaybackRate = 1.2;
 
-        // Pasang event listener cukup satu kali saja di sini
+        const ttsPlayer = new Audio();
+
         ttsPlayer.onended = () => {
             isTtsPlaying = false;
-            handleTtsEnd();
         };
 
         ttsPlayer.onerror = () => {
             isTtsPlaying = false;
-            handleTtsEnd();
         };
 
         const chatLog = document.getElementById('chatLog');
         const localVideo = document.getElementById('localVideo');
         const switchCameraBtn = document.getElementById('switchCameraBtn');
         const torchBtn = document.getElementById('torchBtn');
-        const micUI = document.getElementById('micStatus');
+        const holdBtn = document.getElementById('holdToSpeakBtn');
 
         function setMicEnabled(enabled) {
             if (!localStream) return;
             const micTrack = localStream.getAudioTracks()[0];
             if (micTrack) micTrack.enabled = enabled;
-
-            if (micUI) {
-                if (enabled) {
-                    micUI.innerText = "🎤 Mic: AKTIF";
-                    micUI.style.color = "#00e676";
-                } else {
-                    micUI.innerText = "⏳ Mic: MATI";
-                    micUI.style.color = "#ffeb3b";
-                }
-            }
-        }
-
-        function handleTtsStart() {
-            activeTtsPlaybackCount += 1;
-            setMicEnabled(false);
-        }
-
-        function handleTtsEnd() {
-            activeTtsPlaybackCount = Math.max(0, activeTtsPlaybackCount - 1);
-            if (activeTtsPlaybackCount === 0) {
-                setMicEnabled(true);
-            }
         }
 
         function addLog(sender, text, className) {
@@ -196,6 +191,61 @@
             });
         }
 
+        function startHolding() {
+            if (isHolding) return;
+            isHolding = true;
+
+            if (isTtsPlaying) {
+                ttsPlayer.pause();
+                isTtsPlaying = false;
+            }
+
+            setMicEnabled(true);
+
+            if (wsFrontend.readyState === WebSocket.OPEN) {
+                wsFrontend.send(JSON.stringify({type: "hold_action", action: "start_listening"}));
+            }
+
+            holdBtn.classList.add("holding");
+            holdBtn.innerText = "🎙️ BICARA SEKARANG...";
+        }
+
+        function stopHolding() {
+            if (!isHolding) return;
+            isHolding = false;
+
+            setMicEnabled(false);
+
+            if (wsFrontend.readyState === WebSocket.OPEN) {
+                wsFrontend.send(JSON.stringify({type: "hold_action", action: "stop_listening"}));
+            }
+
+            holdBtn.classList.remove("holding");
+            holdBtn.innerText = "🔴 TEKAN & TAHAN untuk bicara";
+        }
+
+        holdBtn.addEventListener('pointerdown', (e) => {
+            e.preventDefault();
+            holdBtn.setPointerCapture(e.pointerId);
+            startHolding();
+        });
+
+        holdBtn.addEventListener('pointerup', (e) => {
+            e.preventDefault();
+            holdBtn.releasePointerCapture(e.pointerId);
+            stopHolding();
+        });
+
+        holdBtn.addEventListener('pointercancel', (e) => {
+            stopHolding();
+        });
+
+        holdBtn.addEventListener('pointerleave', (e) => {
+            if (isHolding && e.pointerType === 'mouse') {
+                stopHolding();
+            }
+        });
+
         const wsUrl = `ws://${window.location.host}/frontend_ws`;
         const wsFrontend = new WebSocket(wsUrl);
 
@@ -203,53 +253,27 @@
             const data = JSON.parse(event.data);
 
             if (data.type === "audio") {
-                // 1. Jika masih ada suara yang mengoceh, HENTIKAN PAKSA SEKARANG JUGA!
                 if (isTtsPlaying) {
                     ttsPlayer.pause();
-                    handleTtsEnd(); // Lepaskan status mic dari suara lama
+                    isTtsPlaying = false;
                 }
 
-                // 2. Set status menjadi memutar
                 isTtsPlaying = true;
 
-                // 3. Timpa "kaset" dengan file audio yang baru masuk
                 ttsPlayer.src = "data:audio/mp3;base64," + data.audio;
                 const rate = Number(data.playback_rate);
                 ttsPlayer.playbackRate = Number.isFinite(rate) && rate > 0 ? rate : defaultTtsPlaybackRate;
-                
-                handleTtsStart();
-                
-                // 4. Mainkan!
+
                 ttsPlayer.play().catch((err) => {
-                    // Abaikan "AbortError". Error ini wajar karena kita sengaja 
-                    // men-stop paksa audio sebelumnya yang mungkin belum selesai dimuat.
                     if (err.name !== "AbortError") {
                         addLog("Error", "Gagal memutar audio: " + err.message, "system-msg");
                     }
                     isTtsPlaying = false;
-                    handleTtsEnd();
                 });
 
                 if (data.text) addLog("Sistem AI", data.text, "ai-msg");
             }
             else if (data.type === "log") {
-                // Mencegat sinyal kontrol dari Python
-                if (data.sender === "Control") {
-                    if (data.text === "MIC_OFF") setMicEnabled(false);
-                    if (data.text === "MIC_ON") setMicEnabled(true);
-                    return; 
-                }
-
-                // Auto-Mute
-                if (data.sender === "User") {
-                    setMicEnabled(false);
-                }
-
-                // Auto-Unmute saat error
-                if (data.sender === "Error") {
-                    setMicEnabled(true);
-                }
-
                 addLog(data.sender, data.text, data.sender === "User" ? "user-msg" : "system-msg");
             }
         };
@@ -299,7 +323,6 @@
                     video: getHighVideoConstraints(currentFacingMode)
                 });
             } catch (err) {
-                // Fallback agar tetap tersambung pada device yang tidak mampu memenuhi min 1280x720.
                 addLog("Sistem", "Mode kamera HD ketat gagal, mencoba mode kompatibel...", "system-msg");
                 return navigator.mediaDevices.getUserMedia({
                     audio: getAudioConstraints(),
@@ -397,10 +420,35 @@
             }
         }
 
+        function setupHoldButton() {
+            holdBtn.addEventListener('pointerdown', (e) => {
+                e.preventDefault();
+                holdBtn.setPointerCapture(e.pointerId);
+                startHolding();
+            });
+
+            holdBtn.addEventListener('pointerup', (e) => {
+                e.preventDefault();
+                holdBtn.releasePointerCapture(e.pointerId);
+                stopHolding();
+            });
+
+            holdBtn.addEventListener('pointercancel', (e) => {
+                stopHolding();
+            });
+
+            document.addEventListener('pointerup', (e) => {
+                if (isHolding) {
+                    stopHolding();
+                }
+            });
+        }
+
         async function start() {
             addLog("Sistem", "Meminta izin kamera & mic...", "system-msg");
             switchCameraBtn.disabled = true;
             torchBtn.disabled = true;
+            holdBtn.disabled = true;
             updateTorchButtonState();
             try {
                 localStream = await createInitialStream();
@@ -411,14 +459,17 @@
                     logVideoSettings(initialVideoTrack, "Resolusi awal");
                 }
 
+                setMicEnabled(false);
+
                 setupPeerConnection(localStream);
                 await negotiateWebRTC();
 
                 switchCameraBtn.disabled = false;
                 const videoTrack = localStream.getVideoTracks()[0];
                 torchBtn.disabled = !canToggleTorch(videoTrack);
+                holdBtn.disabled = false;
                 addLog("Sistem", "Koneksi WebRTC Berhasil!", "system-msg");
-                
+
                 fetch('/trigger_tts', {
                     method: 'POST',
                     headers: { 'Content-Type': 'application/json' },
@@ -429,11 +480,7 @@
             }
         }
 
-        // Fitur aksesibilitas  layar
-        // document.body.addEventListener('click', (e) => {
-        //     if (e.target.tagName === 'BUTTON') return;
-        //     fetch('/manual_trigger', { method: 'POST' });
-        // });
+        setupHoldButton();
 
         switchCameraBtn.addEventListener("click", switchCamera);
         torchBtn.addEventListener("click", toggleTorch);
