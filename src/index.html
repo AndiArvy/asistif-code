@@ -403,11 +403,10 @@
             if (isHolding) stopHolding();
         });
 
-        // Hanya stop mic saat pointer benar-benar lepas,
-        // pointercancel diabaikan agar gerakan jari kecil tidak matikan mic
-        document.addEventListener('pointercancel', (e) => {
-            // Tidak stop holding — biarkan mic tetap nyala
-            e.preventDefault();
+        // pointercancel: stop mic. Dengan touch-action:none + overflow:hidden,
+        // cancel hanya terjadi untuk gesture besar (bukan gerakan kecil saat bicara)
+        document.addEventListener('pointercancel', () => {
+            if (isHolding) stopHolding();
         });
 
         // Safety: stop mic jika halaman disembunyikan (pindah app, tutup tab)
