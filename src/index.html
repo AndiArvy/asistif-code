@@ -403,8 +403,18 @@
             if (isHolding) stopHolding();
         });
 
-        document.addEventListener('pointercancel', () => {
-            if (isHolding) stopHolding();
+        // Hanya stop mic saat pointer benar-benar lepas,
+        // pointercancel diabaikan agar gerakan jari kecil tidak matikan mic
+        document.addEventListener('pointercancel', (e) => {
+            // Tidak stop holding — biarkan mic tetap nyala
+            e.preventDefault();
+        });
+
+        // Safety: stop mic jika halaman disembunyikan (pindah app, tutup tab)
+        document.addEventListener('visibilitychange', () => {
+            if (document.hidden && isHolding) {
+                stopHolding();
+            }
         });
 
         async function start() {
