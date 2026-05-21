@@ -127,7 +127,7 @@ code2/
 |-------|----------|--------|-----------|
 | Halaman Utama | `/` | GET | Serve `index.html` |
 | WebRTC Signaling | `/offer` | POST | Terima SDP offer dari HP, buat answer |
-| Video Stream | `/video_feed` | GET | Streaming MJPEG dari frame terbaru |
+| Video Stream | `/video_feed` | GET | Streaming MJPEG — event-driven via `asyncio.Event()`, bukan polling busy-loop |
 | Audio Stream | `/audio_feed` | WS | WebSocket untuk audio raw ke Python |
 | Snapshot | `/snapshot` | GET | Ambil 1 frame JPEG terbaru |
 | Chat Log | `/send_log` | POST | Terima log dari script AI, kirim ke HP |
@@ -138,6 +138,7 @@ code2/
 
 **Variabel Global:**
 - `latest_jpeg` - Frame video terbaru dari HP (byte JPEG)
+- `frame_event` - `asyncio.Event()` — sinyal frame baru (event-driven, bukan polling)
 - `frontend_clients` - Set koneksi WebSocket ke HP
 - `audio_clients` - Set koneksi WebSocket ke audio_inference.py
 - `pcs` - Set koneksi RTCPeerConnection aktif
@@ -167,6 +168,13 @@ code2/
 
 **Fitur:**
 - **WebRTC** - Streaming video & audio dari HP ke server
+- **Hold-to-Speak** - Tekan & tahan layar untuk bicara, lepas untuk proses. Geser jari tetap mic ON.
+  - `touchstart` → mic ON (dengan `preventDefault` + `passive:false`)
+  - `touchend` → mic OFF (jari diangkat)
+  - `setPointerCapture` menjamin event tetap diterima setelah jari bergerak
+  - Safety timeout 30 detik jika pointerup tidak pernah sampai
+  - `visibilitychange` → stop mic jika pindah app
+- **Scroll Dicegah** — `html,body { position:fixed; overflow:hidden; height:100dvh }` + `touch-action:none`
 - **UI Taktil** - Tombol besar, warna kontras untuk tunanetra sebagian
 - **Log Chat** - Menampilkan percakapan User ↔ AI dalam kode warna:
   - 🔵 Biru: User message
@@ -264,9 +272,10 @@ detect_current_thumb_touch()
   ├── 1. Capture frame → YOLO rotate → crop remote
   ├── 2. YOLO detect jempol (class_id=1) di dalam crop
   ├── 3. Hitung thumb_center (midpoint bounding box)
-  ├── 4. Map koordinat jempol ke layout (relative position)
-  ├── 5. Cocokkan dengan bounding box tombol (padding 15px)
-  ├── 6. Return: fungsi yang disentuh, thumb center, debug images
+  ├── 4. Map koordinat jempol ke layout (scale terpisah per sumbu x/y)
+  ├── 5. Padding adaptif: makin besar selisih aspect ratio crop, makin longgar toleransi
+  ├── 6. Cocokkan dengan bounding box tombol (padding adaptif)
+  ├── 7. Return: fungsi yang disentuh, thumb center, debug images
   └── Debug: simpan ke debug_current_guided.jpg & debug_reference_guided.jpg
 ```
 
@@ -277,24 +286,26 @@ process_vlm_reasoning(user_text)
   ├── 1. Cek reset layout keywords → reset is_layout_ready
   ├── 2. Jika layout belum siap → auto_setup_layout()
   ├── 3. detect_current_thumb_touch() → dapatkan fungsi yang disentuh
-  ├── 4. Deteksi pertanyaan konfirmasi:
+  ├── 4. Deteksi pertanyaan "apa tombol ini?" (tanpa VLM):
+  │      → "Ini adalah tombol {fungsi}."
+  ├── 5. Deteksi pertanyaan konfirmasi:
   │      "benar/betul/tepat" + "ini/itu/tombol ini" + ada task aktif
   │      → is_target_matched() → jika cocok: konfirmasi & reset task
-  ├── 5. Kirim prompt ke LM Studio:
-  │      - Image 1: Reference layout (posisi & fungsi tombol)
-  │      - Image 2: Current state (posisi jempol real-time)
-  │      - Available Functions (dari layout_data)
-  │      - Previous Task & Current Thumb Location
-  │      System prompt → intent classification + instruction
-  ├── 6. Parse response JSON:
+  ├── 6. Deteksi "dimana tombolnya?" saat ada task aktif:
+  │      → Inject petunjuk ke user_text agar VLM paham ini navigation, bukan question
+  ├── 7. Kirim prompt ke LM Studio:
+  │      - 1 image: current remote crop (overlay bbox + thumb marker)
+  │      - Available Functions + Previous Task + Current Thumb
+  │      - System prompt → 10 aturan (termasuk: Previous Task Priority)
+  ├── 8. Parse response JSON:
   │      {intent, updated_task, target_location_desc, instruction}
-  ├── 7. Handle berdasarkan intent:
+  ├── 9. Handle berdasarkan intent:
   │      - "question" → baca status layar/AC
   │      - "navigation" → set active_task, beri panduan arah
-  │      - "confirmation" → cocokkan dengan task aktif
-  │      - "exploration" → informasikan tombol yang disentuh
   │      - "unknown" → redirect ke perintah remote AC
-  └── 8. Speak response via TTS
+  ├── 10. Bersihkan label indeks (b1, b2) dari teks
+  ├── 11. Batasi conversation_history ke MAX_CONVERSATION_HISTORY (default 20)
+  └── 12. Speak response via TTS
 ```
 
 #### D. Background Task Monitor (`background_task_monitor_loop`)
@@ -332,18 +343,19 @@ Sistem matching yang cerdas untuk mencocokkan fungsi tombol:
    - Ekstrak `xywhr` (center, width, height, rotation radian)
    - Hitung diagonal untuk bounding box aman (anti terpotong)
    - Crop area sekitar remote dengan padding jika perlu
-   - Rotate ROI berdasarkan sudut deteksi
-   - **Lock portrait**: jika width > height, rotate 90°
+   - Rotate ROI berdasarkan sudut deteksi (dapat dibalik via env `YOLO_INVERT_OBB_ANGLE`)
+   - **Lock portrait** (dapat dimatikan via env `YOLO_FORCE_PORTRAIT=false`)
 3. Fallback → `_process_with_axis_aligned()`:
    - Crop bounding box axis-aligned
-   - Lock portrait jika landscape
+   - Lock portrait jika diaktifkan
+4. Return: list of dicts dengan `image`, `angle`, `raw_boxes`
 
-**Rumus Rotasi:**
-```
-angle_deg = math.degrees(angle_rad)  # dari YOLO OBB
-M = cv2.getRotationMatrix2D(center, angle_deg, 1.0)
-rotated = cv2.warpAffine(roi_padded, M, (w, h))
-```
+**Konfigurasi (Environment Variable):**
+| Variabel | Default | Deskripsi |
+|----------|---------|-----------|
+| `YOLO_CONF_THRESHOLD` | `0.3` | Confidence threshold deteksi |
+| `YOLO_FORCE_PORTRAIT` | `true` | Paksa output portrait |
+| `YOLO_INVERT_OBB_ANGLE` | `false` | Balik arah rotasi OBB |
 
 ---
 
@@ -641,10 +653,7 @@ USER MINTA RESET
          │    │  │ intent: question   │      │
          │    │  │  → answer status   │      │
          │    │  └────────────────────┘      │
-         │    │  ┌────────────────────┐      │
-         │    │  │ intent: exploration│      │
-         │    │  │  → inform fungsi   │      │
-         │    │  └────────────────────┘      │
+
          │    └──────────────┬───────────────┘
          │                   │
          │                   ▼
@@ -671,15 +680,15 @@ USER MINTA RESET
 
 | Modul | Bahasa | Baris | Fungsi Utama |
 |-------|--------|-------|--------------|
-| `server_vision.py` | Python | 376 | WebRTC server, HTTP API, TTS delivery |
-| `index.html` | HTML/JS | 400 | Frontend HP WebRTC client, TTS player |
-| `audio_inference.py` | Python | 284 | STT Whisper, VAD, VLM trigger |
-| `vision_reasoning.py` | Python | 839 | Layout setup, thumb detection, VLM reasoning, task monitor |
-| `rotate_remote.py` | Python | 138 | YOLO OBB rotation & cropping |
-| `vision_models.py` | Python | 35 | Lazy-loading YOLO + OWL-ViT |
-| `vision_http.py` | Python | 110 | HTTP utilities (LM Studio, snapshot, TTS) |
-| `tts_cache.py` | Python | 135 | TTS audio caching with MD5 index |
-| `hybrid_inference.py` | Python | 84 | Alternative entry (terminal + tap) |
+| `server_vision.py` | Python | ~430 | WebRTC server, HTTP API, TTS delivery, graceful shutdown |
+| `index.html` | HTML/JS | ~465 | Frontend HP WebRTC client, hold-to-speak (touch + pointer events) |
+| `audio_inference.py` | Python | ~280 | STT Whisper, VAD, VLM trigger, graceful shutdown |
+| `vision_reasoning.py` | Python | ~950 | Layout setup, thumb detection, VLM reasoning, task monitor |
+| `rotate_remote.py` | Python | ~185 | YOLO OBB rotation & cropping (configurable angle, portrait, confidence) |
+| `vision_models.py` | Python | ~42 | Lazy-loading YOLO + OWL-ViT (configurable path via env var) |
+| `vision_http.py` | Python | ~115 | HTTP utilities with ThreadPoolExecutor |
+| `tts_cache.py` | Python | ~110 | TTS audio caching with MD5 index + thread-safe singleton |
+| `hybrid_inference.py` | Python | ~85 | Alternative entry (terminal + tap) |
 | `layout_OWL.py` | Python | 117 | Deprecated standalone OWL script |
 
 ---
