@@ -402,23 +402,30 @@
             }
         }
 
-        document.addEventListener('pointerdown', (e) => {
+        // --- TOUCH EVENTS (mobile-first) ---
+        document.addEventListener('touchstart', (e) => {
             if (e.target.tagName === 'BUTTON') return;
             e.preventDefault();
-            // Capture pointer agar semua event tetap diterima, termasuk setelah
-            // jari bergerak — pointercancel tidak akan fire untuk gerakan biasa
-            try { e.target.setPointerCapture(e.pointerId); } catch (_) {}
-            startHolding(e.pointerId);
+            startHolding();
+        }, { passive: false });
+
+        document.addEventListener('touchend', () => {
+            if (isHolding) stopHolding();
+        });
+
+        document.addEventListener('touchcancel', () => {
+            if (isHolding) stopHolding();
+        });
+
+        // --- POINTER EVENTS (fallback desktop) ---
+        document.addEventListener('pointerdown', (e) => {
+            if (e.target.tagName === 'BUTTON') return;
+            if (!isHolding) startHolding();
         });
 
         document.addEventListener('pointerup', () => {
             if (isHolding) stopHolding();
         });
-
-        // pointercancel: jangan stop mic — dengan setPointerCapture + CSS,
-        // cancel hanya terjadi jika browser benar-benar mengambil alih
-        // (sistem gesture, dll). Safety timer 30dtk di startHolding menangani sisanya.
-        document.addEventListener('pointercancel', () => {});
 
         // Safety: stop mic jika halaman disembunyikan (pindah app, tutup tab)
         document.addEventListener('visibilitychange', () => {
