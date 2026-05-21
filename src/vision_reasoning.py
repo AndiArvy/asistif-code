@@ -1,3 +1,5 @@
+from __future__ import annotations
+
 import cv2
 import re
 import json
@@ -6,6 +8,7 @@ import torch
 import threading
 import time
 import os
+from typing import Any, Optional
 from PIL import Image, ImageDraw, ImageFont
 from rotate_remote import process_yolo_rotation
 from vision_models import get_vision_models
@@ -28,7 +31,7 @@ owl_processor = None
 owl_model = None
 
 
-def ensure_models_loaded():
+def ensure_models_loaded() -> None:
     global yolo_model, owl_processor, owl_model
     if yolo_model is None or owl_processor is None or owl_model is None:
         yolo_model, owl_processor, owl_model = get_vision_models()
@@ -148,17 +151,17 @@ def _result_xyxy_list(result):
     return boxes
 
 
-def is_similar(word, keywords):
+def is_similar(word: str, keywords: list[str]) -> bool:
     return any(k in word or word in k for k in keywords)
 
-def _log(text):
+def _log(text: str) -> None:
     _fire_and_forget_post(LOG_URL, json={"sender": "Sistem", "text": text})
 
 
 # =========================
 # LOGIKA SETUP LAYOUT OTOMATIS
 # =========================
-def generate_owl_layout(cv2_image):
+def generate_owl_layout(cv2_image: np.ndarray) -> tuple[np.ndarray, dict[str, Any]]:
     """Mendeteksi tombol dengan OWL-ViT dan mengembalikan gambar berindeks & data kotak."""
     ensure_models_loaded()
     # Convert CV2 (BGR) to PIL (RGB)
@@ -600,11 +603,20 @@ def detect_current_thumb_touch(write_debug=False):
     if thumb_center:
         cv2.circle(current_drawn_cv, thumb_center, radius=24, color=(0, 0, 255), thickness=-1)
 
-        rel_x = int((thumb_center[0] / w_curr) * w_ref)
-        rel_y = int((thumb_center[1] / h_curr) * h_ref)
+        # Mapping koordinat dari crop saat ini ke reference.
+        # Jika aspect ratio crop berbeda, pakai scale terpisah per sumbu
+        # lalu kompensasi dengan padding adaptif.
+        scale_x = w_ref / max(w_curr, 1)
+        scale_y = h_ref / max(h_curr, 1)
+        rel_x = int(thumb_center[0] * scale_x)
+        rel_y = int(thumb_center[1] * scale_y)
         cv2.circle(reference_drawn_cv, (rel_x, rel_y), radius=24, color=(0, 0, 255), thickness=-1)
 
-        padding = 15
+        # Padding adaptif: makin besar selisih aspect ratio, makin longgar toleransi
+        ar_curr = w_curr / max(h_curr, 1)
+        ar_ref = w_ref / max(h_ref, 1)
+        ar_ratio = max(ar_curr, ar_ref) / max(min(ar_curr, ar_ref), 0.01)
+        padding = int(15 * max(1.0, ar_ratio * 0.5))
         for indeks, data in layout_data.items():
             bx, by, bw, bh = data["coords"]
             if (bx - padding <= rel_x <= bx + bw + padding) and (by - padding <= rel_y <= by + bh + padding):

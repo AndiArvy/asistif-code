@@ -1,3 +1,5 @@
+from __future__ import annotations
+
 import asyncio
 import websockets
 import requests
@@ -7,33 +9,29 @@ import re
 import vision_reasoning
 from vision_reasoning import process_vlm_reasoning
 
-# --- KONFIGURASI ---
-COMMAND_URI = "ws://localhost:8080/command_feed"
-LOG_URI = "http://localhost:8080/send_log"
+COMMAND_URI: str = "ws://localhost:8080/command_feed"
+LOG_URI: str = "http://localhost:8080/send_log"
 
-def clean_command(text):
+
+def clean_command(text: str) -> str:
     return re.sub(r"[^\w\s]", "", text).strip().lower()
 
-async def run_vlm_logic(text, source="Manual"):
-    """Algoritma utama pemrosesan teks ke VLM"""
-    if not text.strip(): return
-    
+
+async def run_vlm_logic(text: str, source: str = "Manual") -> None:
+    if not text.strip():
+        return
     print(f"\n[{source}]: {text}")
-    
-    # Kirim log ke dashboard
     try:
         await asyncio.to_thread(
             lambda: requests.post(LOG_URI, json={"sender": source, "text": text}, timeout=1)
         )
     except Exception:
         pass
-
-    # Jalankan VLM Reasoning
     await asyncio.to_thread(process_vlm_reasoning, text)
     print(f"\n{'-'*20}\n>> ", end="")
 
-async def listen_to_tap_commands():
-    """Mendengarkan sinyal Tap Layar dari server via WebSocket"""
+
+async def listen_to_tap_commands() -> None:
     while True:
         try:
             async with websockets.connect(COMMAND_URI) as websocket:
@@ -41,10 +39,8 @@ async def listen_to_tap_commands():
                 while True:
                     msg = await websocket.recv()
                     data = json.loads(msg)
-                    # Abaikan sinyal hold-to-speak (hanya untuk mode audio)
                     if data.get("type") == "hold_action":
                         continue
-                    # Jika ada sinyal tap, jalankan logika VLM
                     asyncio.create_task(run_vlm_logic(data["text"], source="Tap Layar"))
         except websockets.exceptions.WebSocketException:
             await asyncio.sleep(2)
@@ -52,40 +48,40 @@ async def listen_to_tap_commands():
             print(f"[listen_to_tap_commands] Error: {e}")
             await asyncio.sleep(2)
 
-async def manual_input_loop():
-    """Menerima input ketik dari terminal"""
+
+async def manual_input_loop() -> None:
     loop = asyncio.get_event_loop()
     print(">> ", end="", flush=True)
     while True:
         user_input = await loop.run_in_executor(None, input, "")
-        if user_input.lower() in ['exit', 'quit']: break
+        if user_input.lower() in ['exit', 'quit']:
+            break
         asyncio.create_task(run_vlm_logic(user_input, source="Manual"))
-        
-async def auto_scan_layout():
-    """Looping background untuk mendeteksi remote secara otomatis saat baru mulai atau setelah di-reset"""
+
+
+async def auto_scan_layout() -> None:
     print("Pemindai otomatis aktif. Menunggu remote masuk frame...")
     while True:
-        # Jika layout belum ada, coba tangkap frame secara diam-diam (silent=True)
         if not vision_reasoning.is_layout_ready:
             sukses = await asyncio.to_thread(vision_reasoning.auto_setup_layout, silent=True)
             if sukses:
                 print(">>> Layout remote otomatis tertangkap dan diproses! <<<")
-                
-        # Polling setiap 2 detik (jangan terlalu cepat agar PC tidak berat)
         await asyncio.sleep(2)
 
-async def main():
+
+async def main() -> None:
     print("--- SISTEM AKTIF (Tap Layar + Input Manual) ---")
     vision_reasoning.start_background_task_monitor()
-    # Menjalankan keduanya secara paralel
     await asyncio.gather(
         listen_to_tap_commands(),
         manual_input_loop(),
         auto_scan_layout()
     )
 
+
 if __name__ == "__main__":
     try:
         asyncio.run(main())
     except KeyboardInterrupt:
-        print("\nSistem dimatikan.")
+        print("\n[Mematikan hybrid inference...]")
+        print("[Hybrid inference dimatikan.]")

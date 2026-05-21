@@ -1,3 +1,5 @@
+from __future__ import annotations
+
 import asyncio
 import json
 import os
@@ -9,29 +11,33 @@ import io
 from gtts import gTTS
 from av.audio.resampler import AudioResampler
 from pathlib import Path
+from typing import Any, Optional, Set, TYPE_CHECKING
+if TYPE_CHECKING:
+    from tts_cache import TTSCache
 from tts_cache import get_tts_cache
 
 # Menyimpan koneksi antarmuka web HP
-frontend_clients = set()
+frontend_clients: set = set()
 
 # --- VARIABEL GLOBAL ---
-pcs = set()  # Menyimpan koneksi WebRTC aktif
-latest_jpeg = None  # Menyimpan frame video terakhir
-audio_clients = set()  # Menyimpan client Python yang mendengarkan audio
-tts_cache = get_tts_cache()  # Initialize TTS cache
-TTS_PLAYBACK_RATE = float(os.getenv("TTS_PLAYBACK_RATE", "1.2"))
-JPEG_QUALITY = int(os.getenv("JPEG_QUALITY", "99"))
+pcs: set = set()  # Menyimpan koneksi WebRTC aktif
+latest_jpeg: bytes | None = None  # Menyimpan frame video terakhir
+frame_event: asyncio.Event = asyncio.Event()  # Event-driven: sinyal frame baru
+audio_clients: set = set()  # Menyimpan client Python yang mendengarkan audio
+tts_cache: TTSCache = get_tts_cache()  # Initialize TTS cache
+TTS_PLAYBACK_RATE: float = float(os.getenv("TTS_PLAYBACK_RATE", "1.2"))
+JPEG_QUALITY: int = int(os.getenv("JPEG_QUALITY", "99"))
 
 
 # --- 1. RUTE HALAMAN UTAMA (UI HP) ---
-async def index(request):
+async def index(request: web.Request) -> web.Response:
     with open(os.path.join(os.path.dirname(__file__), "index.html"), "r", encoding="utf-8") as f:
         content = f.read()
     return web.Response(content_type="text/html", text=content)
 
 
 # --- 2. JEMBATAN VIDEO (IP WEBCAM) ---
-async def video_feed(request):
+async def video_feed(request: web.Request) -> web.StreamResponse:
     my_boundary = "frame-boundary"
     response = web.StreamResponse(
         status=200,
@@ -40,27 +46,29 @@ async def video_feed(request):
     )
     await response.prepare(request)
 
-    while True:
-        if latest_jpeg is not None:
-            part = (
-                (
-                    f"--{my_boundary}\r\n"
-                    f"Content-Type: image/jpeg\r\n"
-                    f"Content-Length: {len(latest_jpeg)}\r\n\r\n"
-                ).encode("utf-8")
-                + latest_jpeg
-                + b"\r\n"
-            )
-            try:
+    try:
+        while True:
+            await frame_event.wait()
+            frame_event.clear()
+
+            if latest_jpeg is not None:
+                part = (
+                    (
+                        f"--{my_boundary}\r\n"
+                        f"Content-Type: image/jpeg\r\n"
+                        f"Content-Length: {len(latest_jpeg)}\r\n\r\n"
+                    ).encode("utf-8")
+                    + latest_jpeg
+                    + b"\r\n"
+                )
                 await response.write(part)
-            except Exception:
-                break
-        await asyncio.sleep(0.03)
+    except Exception:
+        pass
     return response
 
 
 # --- 3. JEMBATAN AUDIO (WEBSOCKET) ---
-async def audio_feed(request):
+async def audio_feed(request: web.Request) -> web.WebSocketResponse:
     ws = web.WebSocketResponse()
     await ws.prepare(request)
 
@@ -77,7 +85,7 @@ async def audio_feed(request):
 
 
 # --- 4. PROSES WEBRTC (SIGNALING & TERIMA DATA) ---
-async def offer(request):
+async def offer(request: web.Request) -> web.Response:
     params = await request.json()
     offer = RTCSessionDescription(sdp=params["sdp"], type=params["type"])
 
@@ -91,7 +99,7 @@ async def offer(request):
             pcs.discard(pc)
 
     @pc.on("track")
-    def on_track(track):
+    def on_track(track: Any) -> None:
         # TANGKAP VIDEO
         if track.kind == "video":
             print("Menerima Video Track dari HP!")
@@ -107,6 +115,7 @@ async def offer(request):
                         )
                         if ret:
                             latest_jpeg = buffer.tobytes()
+                            frame_event.set()
                     except Exception:
                         break
 
@@ -154,7 +163,7 @@ async def offer(request):
 
 
 # --- 5. WEBSOCKET UNTUK MENGIRIM PERINTAH KE HP ---
-async def frontend_ws(request):
+async def frontend_ws(request: web.Request) -> web.WebSocketResponse:
     ws = web.WebSocketResponse()
     await ws.prepare(request)
     frontend_clients.add(ws)
@@ -174,7 +183,7 @@ async def frontend_ws(request):
 
 
 # --- 6. API UNTUK MENERIMA TEKS DARI FILE LLM ---
-async def trigger_tts(request):
+async def trigger_tts(request: web.Request) -> web.Response:
     params = await request.json()
     teks = params.get("text", "")
     use_cache = params.get("use_cache", True)
@@ -251,7 +260,7 @@ async def trigger_tts(request):
 
 
 # --- 7. API UNTUK MENERIMA LOG DARI SCRIPT PYTHON LAIN ---
-async def send_log(request):
+async def send_log(request: web.Request) -> web.Response:
     params = await request.json()
     sender = params.get("sender", "System")
     text = params.get("text", "")
@@ -269,7 +278,7 @@ async def send_log(request):
 # --- 8. API & WEBSOCKET UNTUK PERINTAH MANUAL (TAP LAYAR) ---
 command_clients = set()
 
-async def command_feed(request):
+async def command_feed(request: web.Request) -> web.WebSocketResponse:
     """Websocket untuk mendengarkan perintah dari server ke audio_inference.py"""
     ws = web.WebSocketResponse()
     await ws.prepare(request)
@@ -282,7 +291,7 @@ async def command_feed(request):
         command_clients.remove(ws)
     return ws
 
-async def manual_trigger(request):
+async def manual_trigger(request: web.Request) -> web.Response:
     """Menerima sinyal Tap Layar dari HP dan meneruskannya ke AI"""
     # Teruskan sinyal ke audio_inference.py
     for ws in list(command_clients):
@@ -295,7 +304,7 @@ async def manual_trigger(request):
     return web.Response(text="Sinyal tap diterima")
 
 # --- 9. API UNTUK MENGAMBIL 1 FRAME SAJA (SNAPSHOT) ---
-async def snapshot(request):
+async def snapshot(request: web.Request) -> web.Response:
     """Mengirimkan 1 frame gambar JPEG terbaru ke AI tanpa membuka stream"""
     if latest_jpeg is not None:
         return web.Response(body=latest_jpeg, content_type="image/jpeg")
@@ -303,7 +312,7 @@ async def snapshot(request):
 
 
 # --- 8. PRE-GENERATE COMMON TTS PHRASES ---
-async def preload_common_tts():
+async def preload_common_tts() -> None:
     """Pre-generate and cache common TTS phrases on startup"""
     common_phrases = [
         # Navigation & Guidance
@@ -358,10 +367,31 @@ async def preload_common_tts():
     print(f"[TTS Preload] Complete! Cache info: {cache_info}")
 
 
+# --- SHUTDOWN HANDLER ---
+async def on_shutdown(app: web.Application) -> None:
+    """Bersihkan koneksi WebRTC saat server dimatikan."""
+    print("\n[Mematikan server...]")
+    for pc in list(pcs):
+        await pc.close()
+        pcs.discard(pc)
+    for ws in list(frontend_clients):
+        await ws.close()
+    frontend_clients.clear()
+    for ws in list(audio_clients):
+        await ws.close()
+    audio_clients.clear()
+    for ws in list(command_clients):
+        await ws.close()
+    command_clients.clear()
+    print("[Server dimatikan.]")
+
+
 # --- JALANKAN SERVER ---
 if __name__ == "__main__":
     app = web.Application()
     
+    app.on_shutdown.append(on_shutdown)
+
     # Add startup callback to pre-generate TTS
     app.on_startup.append(lambda app: preload_common_tts())
 
@@ -388,7 +418,7 @@ if __name__ == "__main__":
     # app.router.add_post("/manual_trigger", manual_trigger)
     
     # Add preload endpoint that can be triggered manually
-    async def preload_tts_endpoint(request):
+    async def preload_tts_endpoint(request: web.Request) -> web.Response:
         await preload_common_tts()
         return web.Response(text="TTS preload completed")
     
