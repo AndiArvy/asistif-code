@@ -792,6 +792,20 @@ def process_vlm_reasoning(user_text):
             conversation_history.append({"role": "assistant", "content": teks})
             return
 
+    # --- DETEKSI "DIMANA TOMBOLNYA?" SAAT ADA TASK AKTIF ---
+    # Agar VLM tidak salah klasifikasi sebagai "question", tambahkan petunjuk ke prompt
+    dimana_patterns = [
+        r'\bdimana\b',
+        r'\bdi ?mana\b',
+        r'\bcari\b.*(tombol|letak|posisi)',
+        r'(tombol|letak|posisi).*(dimana|di ?mana)',
+        r'\bmana\b.*(tombol|letak|posisi)',
+    ]
+    is_dimana_dengan_task = has_active_task and any(re.search(p, normalized_text) for p in dimana_patterns)
+
+    if is_dimana_dengan_task:
+        user_text = f"{user_text} [PETUNJUK: Pengguna sedang mencari tombol yang sudah ditugaskan ('{active_task_context}'). JANGAN jawab detail layar. Beri petunjuk arah ke tombol tersebut.]"
+
     # --- PERSIAPAN DATA PROMPT ---
     fungsi_tombol_saja = {
         indeks: data.get("fungsi", "tidak diketahui")
@@ -823,6 +837,7 @@ CRITICAL RULES (MUST OBEY):
 7. RED THUMB MARKER: The red marker in the image indicates the user's current finger position. Use it to determine which button they are touching, and guide them accordingly.
 8. INDONESIAN LANGUAGE: The final 'instruction' MUST be in Indonesian.
 9. OUTPUT FORMAT: STRICTLY output a raw JSON object only. NO markdown (```json). NO extra text.
+10. PREVIOUS TASK PRIORITY: If 'Previous Task' is not 'none' and the user asks about location/where a button is, ALWAYS classify the intent as "navigation" with 'updated_task' set to the 'Previous Task'.
 
 INTENT CATEGORIES:
 - "navigation": User wants to execute a command or change a setting.
