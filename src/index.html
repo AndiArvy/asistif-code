@@ -179,7 +179,9 @@
             });
         }
 
-        function startHolding() {
+        let holdSafetyTimer = null;
+
+        function startHolding(pointerId) {
             if (isHolding) return;
             isHolding = true;
 
@@ -196,9 +198,16 @@
 
             micUI.innerText = "🎤 Mic: AKTIF";
             micUI.classList.add("active");
+
+            // Safety: auto-stop setelah 30 detik jika pointerup tidak pernah sampai
+            clearTimeout(holdSafetyTimer);
+            holdSafetyTimer = setTimeout(() => {
+                if (isHolding) stopHolding();
+            }, 30000);
         }
 
         function stopHolding() {
+            clearTimeout(holdSafetyTimer);
             if (!isHolding) return;
             isHolding = false;
 
@@ -396,18 +405,20 @@
         document.addEventListener('pointerdown', (e) => {
             if (e.target.tagName === 'BUTTON') return;
             e.preventDefault();
-            startHolding();
+            // Capture pointer agar semua event tetap diterima, termasuk setelah
+            // jari bergerak — pointercancel tidak akan fire untuk gerakan biasa
+            try { e.target.setPointerCapture(e.pointerId); } catch (_) {}
+            startHolding(e.pointerId);
         });
 
         document.addEventListener('pointerup', () => {
             if (isHolding) stopHolding();
         });
 
-        // pointercancel: stop mic. Dengan touch-action:none + overflow:hidden,
-        // cancel hanya terjadi untuk gesture besar (bukan gerakan kecil saat bicara)
-        document.addEventListener('pointercancel', () => {
-            if (isHolding) stopHolding();
-        });
+        // pointercancel: jangan stop mic — dengan setPointerCapture + CSS,
+        // cancel hanya terjadi jika browser benar-benar mengambil alih
+        // (sistem gesture, dll). Safety timer 30dtk di startHolding menangani sisanya.
+        document.addEventListener('pointercancel', () => {});
 
         // Safety: stop mic jika halaman disembunyikan (pindah app, tutup tab)
         document.addEventListener('visibilitychange', () => {
