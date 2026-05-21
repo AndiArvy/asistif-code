@@ -1,41 +1,45 @@
+from __future__ import annotations
+
 import base64
 import cv2
 import json
 import numpy as np
 import requests
-import threading
 from concurrent.futures import ThreadPoolExecutor
+from typing import Any, Dict, Optional, Tuple
 from tts_cache import get_tts_cache
 
-LM_STUDIO_URL = "http://localhost:1234/v1/chat/completions"
-SNAPSHOT_URL = "http://localhost:8080/snapshot"
-TTS_TRIGGER_URL = "http://localhost:8080/trigger_tts"
-LOG_URL = "http://localhost:8080/send_log"
+LM_STUDIO_URL: str = "http://localhost:1234/v1/chat/completions"
+SNAPSHOT_URL: str = "http://localhost:8080/snapshot"
+TTS_TRIGGER_URL: str = "http://localhost:8080/trigger_tts"
+LOG_URL: str = "http://localhost:8080/send_log"
 
-_request_session = requests.Session()
-_thread_pool = ThreadPoolExecutor(max_workers=4)
+_request_session: requests.Session = requests.Session()
+_thread_pool: ThreadPoolExecutor = ThreadPoolExecutor(max_workers=4)
 
 
-def safe_post(url, **kwargs):
+def safe_post(url: str, **kwargs: Any) -> Optional[requests.Response]:
     try:
-        return _request_session.post(url, timeout=kwargs.pop("timeout", 15), **kwargs)
+        timeout = kwargs.pop("timeout", 15)
+        return _request_session.post(url, timeout=timeout, **kwargs)
     except Exception as e:
         print(f"[Warning] POST gagal ke {url}: {e}")
         return None
 
 
-def _background_post_worker(url, kwargs):
+def _background_post_worker(url: str, kwargs: Dict[str, Any]) -> None:
     try:
-        _request_session.post(url, timeout=kwargs.pop("timeout", 5), **kwargs)
+        timeout = kwargs.pop("timeout", 5)
+        _request_session.post(url, timeout=timeout, **kwargs)
     except Exception as e:
         print(f"[Warning] Background POST gagal ke {url}: {e}")
 
 
-def fire_and_forget_post(url, **kwargs):
+def fire_and_forget_post(url: str, **kwargs: Any) -> None:
     _thread_pool.submit(_background_post_worker, url, kwargs)
 
 
-def capture_current_frame():
+def capture_current_frame() -> Optional[np.ndarray]:
     try:
         response = _request_session.get(SNAPSHOT_URL, timeout=2)
         if response.status_code == 200:
@@ -49,7 +53,7 @@ def capture_current_frame():
     return None
 
 
-def cv2_to_base64(image_array, target_size=(360, 640)):
+def cv2_to_base64(image_array: np.ndarray | None, target_size: tuple[int, int] = (360, 640)) -> Optional[str]:
     if image_array is None or image_array.size == 0:
         return None
 
@@ -68,7 +72,7 @@ def cv2_to_base64(image_array, target_size=(360, 640)):
     return base64.b64encode(buffer).decode("utf-8")
 
 
-def extract_json_object(text):
+def extract_json_object(text: Optional[str]) -> Optional[Dict[str, Any]]:
     if not text:
         return None
     text = text.strip()
@@ -76,7 +80,6 @@ def extract_json_object(text):
         return json.loads(text)
     except Exception:
         pass
-    # Cari brace terluar dengan depth-counting
     depth = 0
     start_idx = -1
     for i, ch in enumerate(text):
@@ -94,7 +97,7 @@ def extract_json_object(text):
     return None
 
 
-def speak(text):
+def speak(text: str) -> None:
     try:
         cache = get_tts_cache()
         cached_file = cache.get_cached_file(text)
@@ -114,5 +117,5 @@ def speak(text):
         fire_and_forget_post(TTS_TRIGGER_URL, json={"text": text})
 
 
-def log_system(text):
+def log_system(text: str) -> None:
     fire_and_forget_post(LOG_URL, json={"sender": "Sistem", "text": text})

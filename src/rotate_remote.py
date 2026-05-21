@@ -1,9 +1,12 @@
+from __future__ import annotations
+
 import cv2
 import numpy as np
 import math
 import os
+from typing import Any, List, Dict
 
-def rotate_image(mat, angle):
+def rotate_image(mat: np.ndarray, angle: float) -> np.ndarray:
     height, width = mat.shape[:2]
     image_center = (width / 2, height / 2)
     rotation_mat = cv2.getRotationMatrix2D(image_center, angle, 1.)
@@ -19,8 +22,8 @@ def rotate_image(mat, angle):
     return cv2.warpAffine(mat, rotation_mat, (bound_w, bound_h), borderValue=(0, 0, 0))
 
 
-def _process_with_obb(img, result):
-    results_list = []
+def _process_with_obb(img: np.ndarray, result: Any) -> List[Dict[str, Any]]:
+    results_list: List[Dict[str, Any]] = []
     obb = getattr(result, "obb", None)
     if obb is None:
         return results_list
@@ -97,9 +100,9 @@ def _process_with_obb(img, result):
     return results_list
 
 
-def _process_with_axis_aligned(img, result):
+def _process_with_axis_aligned(img: np.ndarray, result: Any) -> List[Dict[str, Any]]:
     """Fallback for non-OBB models using axis-aligned boxes."""
-    results_list = []
+    results_list: List[Dict[str, Any]] = []
     boxes = getattr(result, "boxes", None)
     if boxes is None:
         return results_list
@@ -121,7 +124,7 @@ def _process_with_axis_aligned(img, result):
     return results_list
 
 
-def process_yolo_rotation(img, model, target_class=1):
+def process_yolo_rotation(img: np.ndarray | None, model: Any, target_class: int = 1) -> List[Dict[str, Any]]:
     """
     Return portrait remote crops.
     Uses YOLO OBB output when available; falls back to axis-aligned boxes.
@@ -155,9 +158,9 @@ FORCE_PORTRAIT = os.getenv("YOLO_FORCE_PORTRAIT", "true").lower() == "true"
 INVERT_OBB_ANGLE = os.getenv("YOLO_INVERT_OBB_ANGLE", "false").lower() == "true"
 
 
-def _result_xyxy_list(result):
+def _result_xyxy_list(result: Any) -> List[tuple[int, int, int, int]]:
     """Normalize YOLO detection outputs into xyxy integer boxes."""
-    boxes = []
+    boxes: List[tuple[int, int, int, int]] = []
     obb = getattr(result, "obb", None)
     if obb is not None and len(obb) > 0:
         polys = obb.xyxyxyxy.cpu().numpy()

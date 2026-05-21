@@ -1,21 +1,20 @@
+from __future__ import annotations
+
 import os
 import threading
+from typing import Any, Optional, Tuple
 from ultralytics import YOLO
 from transformers import Owlv2Processor, Owlv2ForObjectDetection
 
 
-_MODEL_LOCK = threading.Lock()
-_MODELS = None
+_MODEL_LOCK: threading.Lock = threading.Lock()
+_MODELS: Optional[Tuple[YOLO, Owlv2Processor, Owlv2ForObjectDetection]] = None
 
-YOLO_MODEL_PATH = os.getenv("YOLO_MODEL_PATH", "best.pt")
-OWL_MODEL_NAME = os.getenv("OWL_MODEL_NAME", "google/owlv2-base-patch16-ensemble")
+YOLO_MODEL_PATH: str = os.getenv("YOLO_MODEL_PATH", "best.pt")
+OWL_MODEL_NAME: str = os.getenv("OWL_MODEL_NAME", "google/owlv2-base-patch16-ensemble")
 
 
-def get_vision_models():
-    """
-    Lazy-load heavy vision models once.
-    Returns: (yolo_model, owl_processor, owl_model)
-    """
+def get_vision_models() -> Tuple[YOLO, Owlv2Processor, Owlv2ForObjectDetection]:
     global _MODELS
     if _MODELS is not None:
         return _MODELS
@@ -30,7 +29,7 @@ def get_vision_models():
         except Exception as e:
             raise RuntimeError(
                 f"Gagal memuat YOLO model dari '{YOLO_MODEL_PATH}'. "
-                f"Pastikan file模型 ada atau set env YOLO_MODEL_PATH. Error: {e}"
+                f"Pastikan file model ada atau set env YOLO_MODEL_PATH. Error: {e}"
             ) from e
 
         print("Memuat model OWL-ViT...")

@@ -1,4 +1,5 @@
-# audio_inference.py
+from __future__ import annotations
+
 import os
 
 os.environ["KMP_DUPLICATE_LIB_OK"] = "TRUE"
@@ -10,45 +11,38 @@ import requests
 import re
 from faster_whisper import WhisperModel
 import json
+from typing import List, Any
 from tts_cache import get_tts_cache
-system_is_busy = False
-http_session = requests.Session()
 
-# --- IMPORT LOGIKA VLM DARI FILE TERPISAH ---
+system_is_busy: bool = False
+http_session: requests.Session = requests.Session()
+
 import vision_reasoning
 from vision_reasoning import process_vlm_reasoning
 
 print("Memuat model Whisper...")
-model = WhisperModel(
+model: WhisperModel = WhisperModel(
     os.getenv("WHISPER_MODEL_SIZE", "deepdml/faster-whisper-large-v3-turbo-ct2"),
     device=os.getenv("WHISPER_DEVICE", "cuda"),
     compute_type=os.getenv("WHISPER_COMPUTE_TYPE", "int8_float16"),
     cpu_threads=int(os.getenv("WHISPER_CPU_THREADS", "8")),
 )
 print("Model siap!")
-print("Memuat model visual...")
 print("Sistem siap menerima perintah!")
 
-# --- HOLD TO SPEAK STATE ---
-hold_to_speak_active = False
-hold_audio_buffer = bytearray()
-draining = False
+hold_to_speak_active: bool = False
+hold_audio_buffer: bytearray = bytearray()
+draining: bool = False
 
 
-
-
-async def wait_until_layout_ready():
-    """Tahan listener mic sampai layout remote berhasil dipetakan."""
+async def wait_until_layout_ready() -> None:
     if not vision_reasoning.is_layout_ready:
         print("Menunggu layout remote berhasil diambil...")
-
     while not vision_reasoning.is_layout_ready:
         await asyncio.sleep(0.5)
 
 
-# --- HELPER FUNCTIONS UNTUK BACKGROUND POST REQUESTS ---
-async def send_log_async(text_result):
-    """Mengirim log ke server secara background (non-blocking)"""
+async def send_log_async(text_result: str) -> None:
     try:
         await asyncio.to_thread(
             http_session.post,
@@ -60,20 +54,16 @@ async def send_log_async(text_result):
         print("Gagal kirim log:", e)
 
 
-async def preload_tts_async():
-    """Preload TTS cache ke server secara background (non-blocking)"""
+async def preload_tts_async() -> None:
     try:
         await asyncio.to_thread(
-            http_session.post,
-            "http://localhost:8080/preload_tts",
-            timeout=30
+            http_session.post, "http://localhost:8080/preload_tts", timeout=30
         )
     except Exception as e:
         print("Gagal preload TTS:", e)
 
 
-# --- FUNGSI HELPER UNTUK WHISPER AGAR TIDAK MEMBLOKIR ASYNC ---
-def run_whisper_transcription(audio_data):
+def run_whisper_transcription(audio_data: np.ndarray) -> List[Any]:
     segments_generator, info = model.transcribe(
         audio_data,
         language="id",
@@ -83,7 +73,7 @@ def run_whisper_transcription(audio_data):
         vad_parameters=dict(
             min_silence_duration_ms=int(os.getenv("WHISPER_MIN_SILENCE_MS", "500"))
         ),
-        initial_prompt = (
+        initial_prompt=(
             "Ini tombol apa ya? Tolong nyalakan AC-nya. Suhu sekarang berapa derajat? "
             "Apakah posisi jempol saya sudah benar di tombol power? Udah bener belum di sini? "
             "Tolong turunkan suhu jadi 24 derajat atau naikkan sedikit. "
@@ -97,7 +87,7 @@ def run_whisper_transcription(audio_data):
     return list(segments_generator)
 
 
-async def run_vlm_task(text_result):
+async def run_vlm_task(text_result: str) -> None:
     global system_is_busy
     try:
         await asyncio.to_thread(process_vlm_reasoning, text_result)
@@ -108,8 +98,7 @@ async def run_vlm_task(text_result):
         system_is_busy = False
 
 
-async def process_buffered_audio():
-    """Process the hold-to-speak audio buffer with Whisper"""
+async def process_buffered_audio() -> None:
     global system_is_busy, hold_audio_buffer
 
     if len(hold_audio_buffer) < 2048:
@@ -145,31 +134,26 @@ async def process_buffered_audio():
                 if clean_text not in halusinasi and text_result:
                     is_valid_command = True
                     print(f"[Pengguna]: {text_result}")
-
                     asyncio.create_task(send_log_async(text_result))
                     asyncio.create_task(run_vlm_task(text_result))
 
     except Exception as e:
         print(f"Terjadi kesalahan di Whisper: {e}")
-
     finally:
         if not is_valid_command:
             system_is_busy = False
 
 
-async def listen_to_mic():
-    """Hold-to-speak: buffer audio only while user holds the button"""
+async def listen_to_mic() -> None:
     global hold_to_speak_active, hold_audio_buffer, draining
     uri = "ws://localhost:8080/audio_feed"
 
     while True:
         await wait_until_layout_ready()
-
         try:
             print("Mencoba terhubung ke mic HP via WebSocket...")
             async with websockets.connect(uri) as websocket:
                 print("Berhasil terhubung! Tekan & tahan tombol untuk bicara...")
-
                 while True:
                     if not vision_reasoning.is_layout_ready:
                         print("Layout belum siap/direset. Mic dinonaktifkan sementara.")
@@ -192,8 +176,7 @@ async def listen_to_mic():
             await asyncio.sleep(2)
 
 
-async def listen_to_commands():
-    """Mendengarkan sinyal hold-to-speak dari server.py via command_feed"""
+async def listen_to_commands() -> None:
     global hold_to_speak_active, hold_audio_buffer, draining
     uri = "ws://localhost:8080/command_feed"
     while True:
@@ -221,7 +204,6 @@ async def listen_to_commands():
                         asyncio.create_task(process_buffered_audio())
 
                     elif data.get("text"):
-                        # Legacy/alternative command format
                         teks_sinyal = data.get("text", "ambil ulang layout")
                         asyncio.create_task(
                             asyncio.to_thread(process_vlm_reasoning, teks_sinyal)
@@ -234,8 +216,7 @@ async def listen_to_commands():
             await asyncio.sleep(2)
 
 
-async def auto_scan_layout():
-    """Looping background untuk mendeteksi remote secara otomatis saat baru mulai atau setelah di-reset"""
+async def auto_scan_layout() -> None:
     print("Pemindai otomatis aktif. Menunggu remote masuk frame...")
     while True:
         if not vision_reasoning.is_layout_ready:
@@ -245,23 +226,20 @@ async def auto_scan_layout():
         await asyncio.sleep(3)
 
 
-async def ensure_tts_cache_preloaded():
-    """Ensure TTS cache is available and trigger server preload"""
+async def ensure_tts_cache_preloaded() -> None:
     try:
         cache = get_tts_cache()
         info = cache.get_cache_info()
         print(f"[TTS Cache] Status: {info['total_entries']} entries, {info['total_size_mb']} MB")
-
         asyncio.create_task(preload_tts_async())
     except Exception as e:
         print(f"[TTS Cache] Warning: {e}")
 
 
-async def main():
+async def main() -> None:
     print("[System] Initializing TTS cache system...")
     await ensure_tts_cache_preloaded()
     vision_reasoning.start_background_task_monitor()
-
     print("[System] Starting main service loops...")
     await asyncio.gather(
         listen_to_mic(),
@@ -269,5 +247,11 @@ async def main():
         auto_scan_layout()
     )
 
+
 if __name__ == "__main__":
-    asyncio.run(main())
+    try:
+        asyncio.run(main())
+    except KeyboardInterrupt:
+        print("\n[Mematikan audio inference...]")
+        http_session.close()
+        print("[Audio inference dimatikan.]")
