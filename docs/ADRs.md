@@ -1,0 +1,205 @@
+# Architecture Decision Records (ADR)
+
+Dokumen ini mencatat keputusan arsitektur utama yang diambil selama pengembangan sistem.
+
+---
+
+## ADR-001: WebRTC untuk Streaming Video & Audio Real-time
+
+**Status:** Accepted
+
+**Konteks:** Sistem perlu menerima video dan audio real-time dari HP ke PC untuk diproses oleh model AI. Opsi yang dipertimbangkan: WebRTC, HTTP chunked streaming, WebSocket binary streaming.
+
+**Keputusan:** Menggunakan WebRTC (`aiortc` + browser native `RTCPeerConnection`).
+
+**Alasan:**
+- Native di browser — tidak perlu install app tambahan di HP
+- Adaptive bitrate — otomatis menyesuaikan kualitas dengan koneksi
+- Dukungan audio-video sinkron dalam satu koneksi
+- Firewall-friendly (menggunakan port 8080 yang sama dengan HTTP)
+
+**Konsekuensi:**
+- Kompleksitas signaling (SDP offer/answer)
+- Bergantung pada browser — fitur torch/torch tidak konsisten antar browser
+- Perlu `av` library untuk resample audio
+
+---
+
+## ADR-002: Faster-Whisper untuk Speech-to-Text Lokal
+
+**Status:** Accepted
+
+**Konteks:** Perlu STT real-time dengan latency rendah. Opsi: cloud API (Google/Azure), Whisper lokal, Faster-Whisper.
+
+**Keputusan:** Faster-Whisper dengan model `large-v3-turbo`.
+
+**Alasan:**
+- 4-6x lebih cepat dari OpenAI Whisper (CTranslate2 optimization)
+- Berjalan lokal — tidak perlu internet, privasi terjaga
+- Model turbo memberikan keseimbangan akurasi-kecepatan
+- Dukungan bahasa Indonesia yang baik
+
+**Konsekuensi:**
+- Perlu GPU CUDA untuk real-time performance
+- Model ~3GB, perlu download awal
+
+---
+
+## ADR-003: OWL-ViT untuk Zero-Shot Object Detection Tombol
+
+**Status:** Accepted
+
+**Konteks:** Tombol remote memiliki layout yang sangat bervariasi antar merek AC. Opsi: train custom detector (butuh dataset besar), template matching, OWL-ViT zero-shot.
+
+**Keputusan:** OWL-ViT (`google/owlv2-base-patch16-ensemble`) untuk deteksi tombol tanpa training.
+
+**Alasan:**
+- Zero-shot — tidak perlu dataset tombol remote
+- Generalisasi ke remote manapun tanpa retraining
+- Akurasi cukup baik untuk tombol dengan text query yang tepat
+
+**Konsekuensi:**
+- ~2GB model, loading lambat
+- Threshold 0.1 untuk recall tinggi, kadang over-detect (difilter dengan area threshold 15%)
+- Fallback ke YOLO crop + layout prior jika OWL gagal
+
+---
+
+## ADR-004: YOLOv8 OBB untuk Deteksi & Rotasi Remote
+
+**Status:** Accepted
+
+**Konteks:** Remote bisa dalam posisi miring di kamera. Deteksi butuh rotasi agar tombol bisa diindeks secara konsisten.
+
+**Keputusan:** YOLOv8 dengan dukungan Oriented Bounding Box (OBB) untuk deteksi + rotasi.
+
+**Alasan:**
+- OBB memberikan sudut rotasi langsung dari model
+- YOLOv8 OBB sudah terintegrasi di Ultralytics — tanpa preprocessing tambahan
+- Lock portrait memastikan orientasi konsisten untuk mapping layout
+
+**Konsekuensi:**
+- Model `best.pt` harus support OBB
+- Perlu validasi margin agar remote tidak terpotong
+- Rotasi kadang perlu invert angle (env `YOLO_INVERT_OBB_ANGLE`)
+
+---
+
+## ADR-005: LM Studio untuk VLM Reasoning Lokal
+
+**Status:** Accepted
+
+**Konteks:** Perlu model Vision-Language untuk memahami layout remote dan memberikan panduan navigasi. Opsi: cloud API (GPT-4V, Claude), LM Studio lokal, Ollama.
+
+**Keputusan:** LM Studio (API server lokal di port 1234).
+
+**Alasan:**
+- Berjalan lokal — privasi, tanpa biaya API
+- Mendukung berbagai model vision (LLaVA, CogVLM, Qwen-VL)
+- API kompatibel dengan OpenAI format — mudah diganti ke cloud jika perlu
+- Bisa dijalankan di PC yang sama dengan server
+
+**Konsekuensi:**
+- Perlu GPU dengan VRAM 8GB+ untuk model vision
+- Kualitas reasoning tergantung model yang digunakan
+- Startup lambat (loading model)
+
+---
+
+## ADR-006: gTTS untuk Text-to-Speech
+
+**Status:** Accepted
+
+**Konteks:** Perlu TTS bahasa Indonesia. Opsi: gTTS (online), pyttsx3 (offline), Coqui (offline ML).
+
+**Keputusan:** Google gTTS dengan cache lokal.
+
+**Alasan:**
+- Suara natural, aksen Indonesia baik
+- TTS cache (`tts_cache.py`) mengurangi latency untuk frasa umum
+- Tidak perlu model ML tambahan di lokal
+
+**Konsekuensi:**
+- Perlu koneksi internet untuk TTS baru (cache mengurangi ini)
+- Latency ~1-2 detik untuk generate baru
+- Tidak bisa offline sepenuhnya tanpa preload cache
+
+---
+
+## ADR-007: Hold-to-Speak (Push-to-Talk) untuk Input Suara
+
+**Status:** Accepted
+
+**Konteks:** Sistem perlu tahu kapan user mulai dan selesai bicara. Opsi: voice activity detection (VAD) kontinu, push-to-talk / hold-to-speak.
+
+**Keputusan:** Hold-to-speak — user menekan & menahan layar untuk bicara, melepas untuk proses.
+
+**Alasan:**
+- Menghindari false positive dari percakapan di sekitar
+- Lebih intuitif untuk tunanetra (tactile feedback dari layar)
+- Memudahkan segmentasi audio (mulai dan akhir jelas)
+- Safety timeout 30 detik jika pointerup tidak pernah sampai
+
+**Konsekuensi:**
+- User harus selalu menyentuh layar — tidak bisa hands-free
+- Perlu penanganan event touch + pointer untuk kompatibilitas browser
+
+---
+
+## ADR-008: Background Task Monitor untuk Auto-Confirm
+
+**Status:** Accepted
+
+**Konteks:** Setelah memberi panduan arah, user menggeser jempol. Sistem perlu mendeteksi kapan jempol sampai di tombol yang benar tanpa menunggu pertanyaan konfirmasi.
+
+**Keputusan:** Thread terpisah (`background_task_monitor_loop`) yang mengecek posisi jempol setiap 500ms.
+
+**Alasan:**
+- Mengurangi jumlah interaksi — user tidak perlu bertanya "apakah ini tombol yang benar?"
+- Real-time — konfirmasi otomatis saat jempol menyentuh target
+- Thread terpisah agar tidak memblokir pipeline utama
+
+**Konsekuensi:**
+- Thread concurrency — perlu `vision_processing_lock`
+- Konsumsi CPU tambahan (setiap 500ms YOLO inference small crop)
+- False positive jika jempol melewati tombol target
+
+---
+
+## ADR-009: Auto-Scan Layout untuk Deteksi Remote Otomatis
+
+**Status:** Accepted
+
+**Konteks:** User tunanetra tidak bisa melihat apakah remote sudah terdeteksi. Sistem perlu mendeteksi secara otomatis tanpa perintah eksplisit.
+
+**Keputusan:** Background loop `auto_scan_layout()` setiap 2-3 detik mengecek keberadaan remote.
+
+**Alasan:**
+- User tidak perlu mengucapkan "setup layout" secara manual
+- Deteksi dini — sistem langsung memproses saat remote masuk frame
+- Stabilisasi 2 detik mencegah blur/autofocus
+
+**Konsekuensi:**
+- YOLO inference setiap 2 detik (boros GPU jika tidak ada remote)
+- Layout reset manual tetap diperlukan untuk ganti remote
+
+---
+
+## ADR-010: Architecture Satu Server (Monolith) dengan Port Tunggal
+
+**Status:** Accepted
+
+**Konteks:** Sistem terdiri dari WebRTC server, HTTP API, dan WebSocket endpoints.
+
+**Keputusan:** Semua service dalam satu proses Python (`server_vision.py`) di port 8080.
+
+**Alasan:**
+- Sederhana — tidak perlu orkestrasi multi-service
+- Semua data (video, audio, log, TTS) lewat satu koneksi
+- Mudah di-deploy dan di-debug
+- Cocok untuk penggunaan personal/single-user
+
+**Konsekuensi:**
+- Tidak ada isolasi — crash satu komponen menghentikan semua
+- Kurang cocok untuk multi-user
+- Tidak scalable horizontal
