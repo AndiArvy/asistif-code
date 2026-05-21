@@ -33,8 +33,8 @@ HP (Kamera + Mic) ←→ WebRTC ←→ Server PC (port 8080)
 ### 1. Clone repository
 
 ```bash
-git clone <repo-url>
-cd code2
+git clone git@github.com:AndiArvy/asistif-code.git
+cd asistif-code
 ```
 
 ### 2. Buat virtual environment
