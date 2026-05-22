@@ -163,6 +163,9 @@ async def offer(request: web.Request) -> web.Response:
 
 
 # --- 5. WEBSOCKET UNTUK MENGIRIM PERINTAH KE HP ---
+# Track per-client TTS capability: set of frontend WebSocket clients that support Web Speech
+webspeech_clients: set = set()
+
 async def frontend_ws(request: web.Request) -> web.WebSocketResponse:
     ws = web.WebSocketResponse()
     await ws.prepare(request)
@@ -175,14 +178,22 @@ async def frontend_ws(request: web.Request) -> web.WebSocketResponse:
                     if data.get("type") == "hold_action":
                         for ws_cmd in list(command_clients):
                             await ws_cmd.send_json(data)
+                    elif data.get("type") == "capability":
+                        tts_mode = data.get("tts_mode", "gtts")
+                        if tts_mode == "webspeech":
+                            webspeech_clients.add(ws)
+                            print("[WebSpeech] Client mendukung Web Speech API (TTS offline).")
+                        else:
+                            webspeech_clients.discard(ws)
                 except Exception as e:
                     print(f"[frontend_ws] Error: {e}")
     finally:
         frontend_clients.remove(ws)
+        webspeech_clients.discard(ws)
     return ws
 
 
-# --- 6. API UNTUK MENERIMA TEKS DARI FILE LLM ---
+# --- 6. API UNTUK TTS (gTTS - dengan audio base64) ---
 async def trigger_tts(request: web.Request) -> web.Response:
     params = await request.json()
     teks = params.get("text", "")
@@ -190,6 +201,13 @@ async def trigger_tts(request: web.Request) -> web.Response:
     cache_file = params.get("cache_file", None)
 
     if teks:
+        # Check if any connected client supports Web Speech — send text-only instead
+        has_webspeech_client = len(webspeech_clients) > 0
+        if has_webspeech_client:
+            print(f"[TTS] Client support Web Speech, kirim teks saja: {teks[:60]}...")
+            await _send_speak_to_webspeech_clients(teks, "id-ID")
+            return web.Response(text="Suara berhasil dikirim via Web Speech")
+
         audio_b64 = None
         
         # Check if cached file is provided
@@ -256,6 +274,104 @@ async def trigger_tts(request: web.Request) -> web.Response:
                     print(f"[TTS] Error sending to client: {e}")
 
     return web.Response(text="Suara berhasil dikirim ke HP")
+
+
+# --- 6b. API UNTUK TTS VIA WEB SPEECH (tanpa internet, teks saja) ---
+async def _send_speak_to_webspeech_clients(text: str, lang: str = "id-ID") -> None:
+    """Send text to all Web Speech capable clients for offline TTS."""
+    sent_count = 0
+    for ws in list(webspeech_clients):
+        try:
+            await ws.send_json({
+                "type": "speak",
+                "text": text,
+                "lang": lang,
+            })
+            sent_count += 1
+        except Exception as e:
+            print(f"[WebSpeech] Error sending to client: {e}")
+    print(f"[WebSpeech] Sent speak to {sent_count} client(s): {text[:60]}...")
+
+
+async def trigger_speak(request: web.Request) -> web.Response:
+    """
+    Kirim teks TTS via Web Speech API langsung ke browser HP.
+    Tidak perlu generate audio di server. Zero internet, zero server load.
+    """
+    params = await request.json()
+    teks = params.get("text", "")
+    lang = params.get("lang", "id-ID")
+    fallback_to_gtts = params.get("fallback_to_gtts", True)
+
+    if not teks:
+        return web.Response(text="Teks kosong", status=400)
+
+    # Try Web Speech first
+    has_webspeech_client = len(webspeech_clients) > 0
+    if has_webspeech_client:
+        await _send_speak_to_webspeech_clients(teks, lang)
+        return web.Response(text="Suara berhasil dikirim via Web Speech (offline)")
+    
+    # Fallback to gTTS if no Web Speech client and fallback enabled
+    if fallback_to_gtts:
+        print(f"[trigger_speak] No Web Speech client, fallback to gTTS: {teks[:60]}...")
+        await _trigger_tts_inline(teks, params.get("use_cache", True), params.get("cache_file", None))
+        return web.Response(text="Suara berhasil dikirim via gTTS (fallback)")
+    
+    return web.Response(text="Tidak ada client yang terhubung untuk TTS", status=503)
+
+
+async def _trigger_tts_inline(teks: str, use_cache: bool = True, cache_file: str | None = None) -> None:
+    """Internal helper: generate gTTS audio and send to all frontend clients."""
+    audio_b64 = None
+    
+    if use_cache and cache_file:
+        cache_file_resolved = Path(cache_file).resolve()
+        cache_dir_resolved = Path(tts_cache.get_cache_dir()).resolve()
+        try:
+            cache_file_resolved.relative_to(cache_dir_resolved)
+        except ValueError:
+            print(f"[TTS] Security: rejected path traversal attempt: {cache_file}")
+            cache_file = None
+
+    if use_cache and cache_file and os.path.exists(cache_file):
+        try:
+            with open(cache_file, 'rb') as f:
+                audio_b64 = base64.b64encode(f.read()).decode("utf-8")
+        except Exception:
+            audio_b64 = None
+    
+    if not audio_b64:
+        try:
+            tts = gTTS(text=teks, lang="id")
+            fp = io.BytesIO()
+            tts.write_to_fp(fp)
+            fp.seek(0)
+            audio_b64 = base64.b64encode(fp.read()).decode("utf-8")
+            
+            try:
+                cache_filename = tts_cache.hash_text(teks) + ".mp3"
+                cache_filepath = os.path.join(tts_cache.get_cache_dir(), cache_filename)
+                with open(cache_filepath, 'wb') as f:
+                    f.write(fp.getvalue())
+                tts_cache.add_to_cache(teks, cache_filepath)
+            except Exception:
+                pass
+        except Exception as e:
+            print(f"[TTS] Error generating TTS: {e}")
+            return
+    
+    if audio_b64:
+        for ws in list(frontend_clients):
+            try:
+                await ws.send_json({
+                    "type": "audio",
+                    "audio": audio_b64,
+                    "text": teks,
+                    "playback_rate": TTS_PLAYBACK_RATE,
+                })
+            except Exception:
+                pass
 
 
 
@@ -413,6 +529,7 @@ if __name__ == "__main__":
     app.router.add_post(
         "/trigger_tts", trigger_tts
     )  # Aktifkan jika fungsi ini sudah dibuat
+    app.router.add_post("/trigger_speak", trigger_speak)  # TTS offline via Web Speech API
 
     app.router.add_get("/command_feed", command_feed)
     # app.router.add_post("/manual_trigger", manual_trigger)
