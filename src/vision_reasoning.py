@@ -161,25 +161,69 @@ def _log(text: str) -> None:
 # =========================
 # LOGIKA SETUP LAYOUT OTOMATIS
 # =========================
+def calculate_iou(box1: list, box2: list) -> float:
+    inter_x1 = max(box1[0], box2[0])
+    inter_y1 = max(box1[1], box2[1])
+    inter_x2 = min(box1[2], box2[2])
+    inter_y2 = min(box1[3], box2[3])
+
+    inter_w = max(0, inter_x2 - inter_x1)
+    inter_h = max(0, inter_y2 - inter_y1)
+    inter_area = inter_w * inter_h
+
+    area1 = (box1[2] - box1[0]) * (box1[3] - box1[1])
+    area2 = (box2[2] - box2[0]) * (box2[3] - box2[1])
+
+    union_area = area1 + area2 - inter_area
+    iou = inter_area / union_area if union_area > 0 else 0
+
+    # ✅ IoMin: irisan dibagi luas box TERKECIL
+    # Jika box kecil hampir seluruhnya di dalam box besar → nilai mendekati 1.0
+    min_area = min(area1, area2)
+    iomin = inter_area / min_area if min_area > 0 else 0
+
+    # Gunakan nilai tertinggi dari keduanya
+    return max(iou, iomin)
+
+
+def apply_nms(detections: list[dict], iou_threshold: float = 0.5) -> list[dict]:
+    if not detections:
+        return []
+
+    detections = sorted(detections, key=lambda d: d["score"], reverse=True)
+
+    kept = []
+    while detections:
+        best = detections.pop(0)
+        kept.append(best)
+        detections = [
+            d for d in detections
+            if calculate_iou(best["box"], d["box"]) < iou_threshold
+        ]
+
+    return kept
+
 def generate_owl_layout(cv2_image: np.ndarray) -> tuple[np.ndarray, dict[str, Any]]:
     """Mendeteksi tombol dengan OWL-ViT dan mengembalikan gambar berindeks & data kotak."""
     ensure_models_loaded()
+
     # Convert CV2 (BGR) to PIL (RGB)
     color_coverted = cv2.cvtColor(cv2_image, cv2.COLOR_BGR2RGB)
     pil_img = Image.fromarray(color_coverted)
-    
-    # --- TAMBAHAN: Hitung total luas gambar untuk referensi filter ---
+
+    # Hitung total luas gambar untuk referensi filter
     img_width, img_height = pil_img.size
     total_area = img_width * img_height
 
     teks_pencarian = [[
-    "a remote",
-    "number buttons",
-    "individual button on a remote control",
-    "small buttons",
-    "control buttons",
-    "keypad buttons"
+        "a remote",
+        "number buttons",
+        "individual button on a remote control",
+        "small buttons",
+        "control buttons",
+        "keypad buttons"
     ]]
+
     inputs = owl_processor(text=teks_pencarian, images=pil_img, return_tensors="pt")
 
     with torch.no_grad():
@@ -187,7 +231,7 @@ def generate_owl_layout(cv2_image: np.ndarray) -> tuple[np.ndarray, dict[str, An
 
     target_sizes = torch.tensor([pil_img.size[::-1]])
     results = owl_processor.post_process_grounded_object_detection(
-        outputs=outputs, target_sizes=target_sizes, threshold=0.1
+        outputs=outputs, target_sizes=target_sizes, threshold=0.09
     )[0]
 
     remotes, buttons = [], []
@@ -196,21 +240,22 @@ def generate_owl_layout(cv2_image: np.ndarray) -> tuple[np.ndarray, dict[str, An
     ):
         box_coords = [round(i, 2) for i in box.tolist()]
         kata = teks_pencarian[0][label.item()]
-        
+
         if kata == "a remote":
-            remotes.append({"box": box_coords})
+            remotes.append({"box": box_coords, "score": score.item()})
         else:
-            # --- TAMBAHAN: LOGIKA FILTER AREA UNTUK TOMBOL ---
-            # Kalkulasi luas box (x2-x1) * (y2-y1)
             box_w = box_coords[2] - box_coords[0]
             box_h = box_coords[3] - box_coords[1]
             box_area = box_w * box_h
-            
-            # Jika box tombol > 15% dari total luas gambar, abaikan (anggap over-detection)
+
             if (box_area / total_area) > 0.15:
-                continue # Loncat ke deteksi berikutnya, jangan masukkan ke 'buttons'
-                
-            buttons.append({"box": box_coords})
+                continue
+
+            buttons.append({"box": box_coords, "score": score.item()})
+
+    # Terapkan NMS untuk menghapus deteksi duplikat
+    buttons = apply_nms(buttons, iou_threshold=0.5)
+    remotes = apply_nms(remotes, iou_threshold=0.5)
 
     tombol_valid = []
     for btn in buttons:
@@ -222,11 +267,10 @@ def generate_owl_layout(cv2_image: np.ndarray) -> tuple[np.ndarray, dict[str, An
                 tombol_valid.append(btn)
                 break
 
-    # Jika tidak ada remote utuh terdeteksi OWL, anggap semua tombol valid
+    # Jika tidak ada remote terdeteksi, anggap semua tombol valid
     if not remotes:
         tombol_valid = buttons
 
-    # --- LOGIKA DRAWING ASLI ANDA (TIDAK DIUBAH) ---
     draw = ImageDraw.Draw(pil_img)
     try:
         font = ImageFont.truetype("arial.ttf", 30)
@@ -244,12 +288,9 @@ def generate_owl_layout(cv2_image: np.ndarray) -> tuple[np.ndarray, dict[str, An
             "coords": [round(x, 2), round(y, 2), round(w, 2), round(h, 2)]
         }
 
-        # Menggambar kotak lime
         draw.rectangle(box, outline="lime", width=4)
-        
-        # Logika teks: Teks di posisi (x+4, y+4), dengan background hitam rectangle
+
         text_pos = (box[0] + 4, box[1] + 4)
-        # Menghitung perkiraan area background hitam agar teks arial tidak tumpang tindih
         draw.rectangle([text_pos, (text_pos[0] + 52, text_pos[1] + 34)], fill="black")
         draw.text(text_pos, indeks, fill="lime", font=font)
         button_counter += 1
@@ -853,9 +894,9 @@ CRITICAL RULES (MUST OBEY):
 10. PREVIOUS TASK PRIORITY: If 'Previous Task' is not 'none' and the user asks about the location or direction of a button, ALWAYS classify the intent as "navigation" with 'updated_task' set to the exact 'Previous Task' string. This rule overrides Rule 3 for location-based questions.
 
 INTENT CATEGORIES:
-- "navigation": User wants to execute a command or change a setting.
+- "navigation": User wants to execute a command, change a setting, OR asks for the physical location/direction of a specific button (e.g., "dimana tombol power", "tombol mode sebelah mana").
 - "confirmation": User asks if their current finger position is on the correct button.
-- "question": User asks for screen info (temperature, mode, fan speed) or asks about the button they are currently touching.
+- "question": User asks for screen info (temperature, mode, fan speed) OR asks to identify the button they are currently touching (e.g., "tombol apa yang sedang saya sentuh?"). DO NOT use this intent if the user is asking where a specific target button is located.
 - "unknown": Query is unclear or does not fit any category above.
 
 EXPECTED OUTPUT EXAMPLES (NO MARKDOWN):
@@ -864,6 +905,7 @@ EXPECTED OUTPUT EXAMPLES (NO MARKDOWN):
 {{"intent": "confirmation", "updated_task": "none", "target_location_desc": "N/A", "instruction": "Ya, jempol Anda sudah berada di tombol yang tepat. Silakan tekan."}}
 {{"intent": "question", "updated_task": "none", "target_location_desc": "N/A", "instruction": "Suhu di layar saat ini 24 derajat dengan mode cool, kecepatan kipas tampak rendah."}}
 {{"intent": "question", "updated_task": "none", "target_location_desc": "N/A", "instruction": "Sepertinya suhu sekitar 26 derajat dengan mode cool, namun gambar kurang jelas sehingga mohon konfirmasi jika terasa tidak sesuai."}}
+{{"intent": "navigation", "updated_task": "mode", "target_location_desc": "kiri atas", "instruction": "Tombol mode berada di sebelah kiri atas. Silakan geser jempol Anda ke atas dari posisi saat ini."}}
 """
 
     messages_payload = [

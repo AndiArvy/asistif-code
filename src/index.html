@@ -144,6 +144,8 @@
         let torchEnabled = false;
         let isTtsPlaying = false;
         let isHolding = false;
+        let hasUserInteracted = false;
+        let useWebSpeech = false;
         const defaultTtsPlaybackRate = 1.2;
 
         const ttsPlayer = new Audio();
@@ -155,6 +157,59 @@
         ttsPlayer.onerror = () => {
             isTtsPlaying = false;
         };
+
+        // --- Web Speech API (Offline TTS via browser native) ---
+        function isSpeechSynthesisSupported() {
+            return 'speechSynthesis' in window;
+        }
+
+        function speakOffline(text, lang = 'id-ID') {
+            if (!isSpeechSynthesisSupported()) {
+                console.warn("Web Speech API tidak didukung browser ini.");
+                return false;
+            }
+
+            // Cancel previous speech to avoid overlapping
+            window.speechSynthesis.cancel();
+
+            const utterance = new SpeechSynthesisUtterance(text);
+            utterance.lang = lang;
+            utterance.rate = 1.0;
+            utterance.pitch = 1.0;
+            utterance.volume = 1.0;
+
+            utterance.onstart = () => {
+                isTtsPlaying = true;
+            };
+
+            utterance.onend = () => {
+                isTtsPlaying = false;
+            };
+
+            utterance.onerror = (e) => {
+                console.error("Web Speech error:", e);
+                isTtsPlaying = false;
+            };
+
+            window.speechSynthesis.speak(utterance);
+            return true;
+        }
+
+        // Mark user interaction to unlock audio/autoplay policies
+        function markUserInteraction() {
+            if (!hasUserInteracted) {
+                hasUserInteracted = true;
+                // Test speech synthesis availability (Chrome needs a user gesture first)
+                if (isSpeechSynthesisSupported()) {
+                    // Speak a silent test to warm up the engine
+                    const testUtterance = new SpeechSynthesisUtterance('');
+                    testUtterance.volume = 0;
+                    window.speechSynthesis.speak(testUtterance);
+                }
+                // Warm up the Audio element too
+                ttsPlayer.load();
+            }
+        }
 
         const chatLog = document.getElementById('chatLog');
         const localVideo = document.getElementById('localVideo');
@@ -186,7 +241,11 @@
             isHolding = true;
 
             if (isTtsPlaying) {
-                ttsPlayer.pause();
+                if (useWebSpeech && isSpeechSynthesisSupported()) {
+                    window.speechSynthesis.cancel();
+                } else {
+                    ttsPlayer.pause();
+                }
                 isTtsPlaying = false;
             }
 
@@ -225,12 +284,45 @@
         const wsUrl = `${wsProtocol}//${window.location.host}/frontend_ws`;
         const wsFrontend = new WebSocket(wsUrl);
 
+        wsFrontend.onopen = function () {
+            // If Web Speech API is available, tell server to send text-only TTS
+            if (isSpeechSynthesisSupported()) {
+            // if (0) {
+                useWebSpeech = true;
+                wsFrontend.send(JSON.stringify({
+                    type: "capability",
+                    tts_mode: "webspeech"
+                }));
+                addLog("Sistem", "Mode TTS offline (Web Speech API) aktif.", "system-msg");
+            } else {
+                addLog("Sistem", "Web Speech API tidak tersedia, fallback ke TTS server (gTTS).", "system-msg");
+            }
+        };
+
         wsFrontend.onmessage = function (event) {
             const data = JSON.parse(event.data);
 
-            if (data.type === "audio") {
+            if (data.type === "speak") {
+                // Web Speech API TTS - text only, no base64 audio
                 if (isTtsPlaying) {
-                    ttsPlayer.pause();
+                    window.speechSynthesis.cancel();
+                    isTtsPlaying = false;
+                }
+
+                const spoken = speakOffline(data.text, data.lang || 'id-ID');
+                if (!spoken) {
+                    // Fallback: request audio from server if Web Speech fails
+                    addLog("Sistem", "Web Speech gagal, fallback ke audio server.", "system-msg");
+                }
+                if (data.text) addLog("Sistem AI", data.text, "ai-msg");
+            }
+            else if (data.type === "audio") {
+                if (isTtsPlaying) {
+                    if (useWebSpeech) {
+                        window.speechSynthesis.cancel();
+                    } else {
+                        ttsPlayer.pause();
+                    }
                     isTtsPlaying = false;
                 }
 
@@ -277,7 +369,7 @@
                 facingMode,
                 width: { ideal: 1920 },
                 height: { ideal: 1080 },
-                frameRate: { min: 10, ideal: 20 }
+                frameRate: { min: 5, ideal: 10 }
             };
         }
 
@@ -404,6 +496,7 @@
 
         // --- TOUCH EVENTS (mobile-first) ---
         document.addEventListener('touchstart', (e) => {
+            markUserInteraction();
             if (e.target.tagName === 'BUTTON') return;
             e.preventDefault();
             startHolding();
@@ -419,6 +512,7 @@
 
         // --- POINTER EVENTS (fallback desktop) ---
         document.addEventListener('pointerdown', (e) => {
+            markUserInteraction();
             if (e.target.tagName === 'BUTTON') return;
             if (!isHolding) startHolding();
         });
