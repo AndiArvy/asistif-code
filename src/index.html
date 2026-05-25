@@ -287,6 +287,7 @@
         wsFrontend.onopen = function () {
             // If Web Speech API is available, tell server to send text-only TTS
             if (isSpeechSynthesisSupported()) {
+            // if (0) {
                 useWebSpeech = true;
                 wsFrontend.send(JSON.stringify({
                     type: "capability",
@@ -368,7 +369,7 @@
                 facingMode,
                 width: { ideal: 1920 },
                 height: { ideal: 1080 },
-                frameRate: { min: 10, ideal: 20 }
+                frameRate: { min: 5, ideal: 10 }
             };
         }
 
