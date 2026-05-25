@@ -271,6 +271,15 @@ def generate_owl_layout(cv2_image: np.ndarray) -> tuple[np.ndarray, dict[str, An
     if not remotes:
         tombol_valid = buttons
 
+    # Urutkan tombol: kiri-ke-kanan, atas-ke-bawah
+    if tombol_valid:
+        heights = [b["box"][3] - b["box"][1] for b in tombol_valid]
+        row_h = sorted(heights)[len(heights) // 2] * 1.2 if heights else 50
+        tombol_valid.sort(key=lambda b: (
+            int(((b["box"][1] + b["box"][3]) / 2) // row_h),
+            (b["box"][0] + b["box"][2]) / 2,
+        ))
+
     draw = ImageDraw.Draw(pil_img)
     try:
         font = ImageFont.truetype("arial.ttf", 30)
@@ -414,13 +423,17 @@ def _generate_location_descriptions():
         (2, 2): "pojok kanan bawah",
     }
 
+    row_h = (2 * h / 3) / 3
+    row_offset = h / 3
+
     for indeks, data in layout_data.items():
         bx, by, bw, bh = data["coords"]
         cx = bx + bw / 2
         cy = by + bh / 2
 
         col_idx = min(2, int(cx / (max(w, 1) / 3)))
-        row_idx = min(2, int(cy / (max(h, 1) / 3)))
+        cy_adjusted = max(0, cy - row_offset)
+        row_idx = min(2, int(cy_adjusted / max(row_h, 1)))
 
         data["location_desc"] = position_map.get((col_idx, row_idx), "tidak diketahui")
 
@@ -523,6 +536,8 @@ def auto_setup_layout(silent=True):
         is_layout_ready = True
 
         _generate_location_descriptions()
+        with open("layout.json", "w") as f:
+            json.dump(layout_data, f, indent=4)
         lokasi_info = {k: v.get("location_desc", "?") for k, v in layout_data.items()}
         print(f"[Layout] Lokasi tombol: {lokasi_info}")
 
@@ -883,14 +898,22 @@ def process_vlm_reasoning(user_text):
 
     if is_dimana_question and is_layout_ready and layout_data:
         matched = None
-        # Cari tombol yang fungsinya cocok dengan pertanyaan user
+        # Pass 1: exact match (nama fungsi muncul persis di teks user)
         for indeks, data in layout_data.items():
             fungsi = data.get("fungsi", "")
-            if fungsi and fungsi not in ["", "tidak diketahui"] and _match_task_texts(normalized_text, fungsi):
+            if fungsi and fungsi not in ["", "tidak diketahui"] and fungsi in normalized_text:
                 matched = indeks
                 break
 
-        # Jika belum match dan ada task aktif, cari berdasarkan task context
+        # Pass 2: synonym match (fallback jika exact gagal)
+        if not matched:
+            for indeks, data in layout_data.items():
+                fungsi = data.get("fungsi", "")
+                if fungsi and fungsi not in ["", "tidak diketahui"] and _match_task_texts(normalized_text, fungsi):
+                    matched = indeks
+                    break
+
+        # Pass 3: jika belum match dan ada task aktif, cari berdasarkan task context
         if not matched and has_active_task:
             for indeks, data in layout_data.items():
                 if _match_task_texts(active_task_context, data.get("fungsi", "")):
