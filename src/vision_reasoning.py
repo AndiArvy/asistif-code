@@ -392,6 +392,39 @@ Example Output:
         return layout_dict
 
 
+def _generate_location_descriptions():
+    global layout_data, reference_indexed_image_cv
+
+    if reference_indexed_image_cv is None or not layout_data:
+        return
+
+    h, w = reference_indexed_image_cv.shape[:2]
+    if h == 0 or w == 0:
+        return
+
+    position_map = {
+        (0, 0): "pojok kiri atas",
+        (1, 0): "bagian atas tengah",
+        (2, 0): "pojok kanan atas",
+        (0, 1): "kiri tengah",
+        (1, 1): "tengah remote",
+        (2, 1): "kanan tengah",
+        (0, 2): "pojok kiri bawah",
+        (1, 2): "bagian bawah tengah",
+        (2, 2): "pojok kanan bawah",
+    }
+
+    for indeks, data in layout_data.items():
+        bx, by, bw, bh = data["coords"]
+        cx = bx + bw / 2
+        cy = by + bh / 2
+
+        col_idx = min(2, int(cx / (max(w, 1) / 3)))
+        row_idx = min(2, int(cy / (max(h, 1) / 3)))
+
+        data["location_desc"] = position_map.get((col_idx, row_idx), "tidak diketahui")
+
+
 def auto_setup_layout(silent=True):
     """Mencari remote, merotasi, mengindeks, dan memetakan fungsinya."""
     global is_layout_ready, reference_clean_b64, reference_indexed_b64, reference_indexed_image_cv, layout_data
@@ -488,6 +521,10 @@ def auto_setup_layout(silent=True):
         )
 
         is_layout_ready = True
+
+        _generate_location_descriptions()
+        lokasi_info = {k: v.get("location_desc", "?") for k, v in layout_data.items()}
+        print(f"[Layout] Lokasi tombol: {lokasi_info}")
 
         _speak("Pemetaan remote berhasil. Mau saya bantu apa?")
 
@@ -746,12 +783,12 @@ def process_vlm_reasoning(user_text):
     normalized_text = re.sub(r"\s+", " ", user_text.lower()).strip()
 
     # Flashlight voice control (tidak perlu VLM)
-    if any(kata in normalized_text for kata in ["senter", "flash", "flashlight", "lampu senter", "torch"]):
+    if any(kata in normalized_text for kata in ["senter", "flash", "flashlight", "lampu senter", "torch", "nyalakan senter", "matikan senter", "nyalakan lampu", "matikan lampu"]):
         _fire_and_forget_post(LOG_URL, json={"sender": "Control", "text": "TOGGLE_FLASH"})
         _speak("Senter")
         return
 
-    if any(phrase in normalized_text for phrase in ["reset layout", "ulang layout", "ganti remote", "remote baru"]):
+    if any(phrase in normalized_text for phrase in ["reset layout", "ulang layout", "ganti remote", "remote baru", "remote berbeda", "reset pemetaan", "ulang dari awal"]):
         is_layout_ready = False
         active_task_context = DEFAULT_TASK_CONTEXT
         active_task_intent = None
@@ -799,6 +836,7 @@ def process_vlm_reasoning(user_text):
         r'tombol (apa|mana) (ini|itu)',
         r'apa yang (aku|saya) sentuh',
         r'apa (ini|itu) .*(tombol|fungsi)',
+        r'jempol (saya|aku) menyentuh apa',
     ]
     is_what_question = any(re.search(p, normalized_text) for p in what_patterns)
 
