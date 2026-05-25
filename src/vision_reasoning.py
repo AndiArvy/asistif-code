@@ -75,7 +75,7 @@ SYNONYM_GROUPS = [
     ["suhu turun", "temp down", "temp_down", "turunkan", "down", "kurang", "dingin", "temp", "suhu", "minus", "-", "cooler"],
 
     # Fan Speed
-    ["fan", "kipas", "angin", "kecepatan", "speed", "quiet", "level", "kencang", "pelan"],
+    ["fan", "kipas", "angin", "kecepatan", "speed", "quiet", "level", "kencang", "pelan", "wind", "fanspeed", "kecepatan angin"],
 
     # Mode
     ["mode", "cool", "dry", "heat", "auto", "dingin", "kering", "otomatis"],
@@ -271,6 +271,15 @@ def generate_owl_layout(cv2_image: np.ndarray) -> tuple[np.ndarray, dict[str, An
     if not remotes:
         tombol_valid = buttons
 
+    # Urutkan tombol: kiri-ke-kanan, atas-ke-bawah
+    if tombol_valid:
+        heights = [b["box"][3] - b["box"][1] for b in tombol_valid]
+        row_h = sorted(heights)[len(heights) // 2] * 1.2 if heights else 50
+        tombol_valid.sort(key=lambda b: (
+            int(((b["box"][1] + b["box"][3]) / 2) // row_h),
+            (b["box"][0] + b["box"][2]) / 2,
+        ))
+
     draw = ImageDraw.Draw(pil_img)
     try:
         font = ImageFont.truetype("arial.ttf", 30)
@@ -392,6 +401,43 @@ Example Output:
         return layout_dict
 
 
+def _generate_location_descriptions():
+    global layout_data, reference_indexed_image_cv
+
+    if reference_indexed_image_cv is None or not layout_data:
+        return
+
+    h, w = reference_indexed_image_cv.shape[:2]
+    if h == 0 or w == 0:
+        return
+
+    position_map = {
+        (0, 0): "pojok kiri atas",
+        (1, 0): "bagian atas tengah",
+        (2, 0): "pojok kanan atas",
+        (0, 1): "kiri tengah",
+        (1, 1): "tengah remote",
+        (2, 1): "kanan tengah",
+        (0, 2): "pojok kiri bawah",
+        (1, 2): "bagian bawah tengah",
+        (2, 2): "pojok kanan bawah",
+    }
+
+    row_h = (2 * h / 3) / 3
+    row_offset = h / 3
+
+    for indeks, data in layout_data.items():
+        bx, by, bw, bh = data["coords"]
+        cx = bx + bw / 2
+        cy = by + bh / 2
+
+        col_idx = min(2, int(cx / (max(w, 1) / 3)))
+        cy_adjusted = max(0, cy - row_offset)
+        row_idx = min(2, int(cy_adjusted / max(row_h, 1)))
+
+        data["location_desc"] = position_map.get((col_idx, row_idx), "tidak diketahui")
+
+
 def auto_setup_layout(silent=True):
     """Mencari remote, merotasi, mengindeks, dan memetakan fungsinya."""
     global is_layout_ready, reference_clean_b64, reference_indexed_b64, reference_indexed_image_cv, layout_data
@@ -409,7 +455,7 @@ def auto_setup_layout(silent=True):
         _speak("Remote terlihat. Tahan sebentar...")
         
         # Jeda 2 detik. Karena dipanggil via asyncio.to_thread, ini tidak akan membuat server WebRTC crash.
-        time.sleep(2.0) 
+        time.sleep(1.5) 
         
         # --- 3. PENGAMBILAN GAMBAR UTAMA (Setelah Stabil) ---
         _fire_and_forget_post(LOG_URL, json={"sender": "Sistem", "text": "Mengambil gambar jernih..."})
@@ -422,7 +468,7 @@ def auto_setup_layout(silent=True):
         
         if remote_crop is None:
             _speak("Remote hilang dari pandangan. Silakan arahkan lagi.")
-            time.sleep(2.0) 
+            time.sleep(1.5) 
             return False
 
         # --- 4. VALIDASI UKURAN GAMBAR (Jarak Remote) ---
@@ -431,11 +477,11 @@ def auto_setup_layout(silent=True):
         
         if luas_area < 60000: # Threshold luas (bisa disesuaikan nanti)
             _speak("Terlalu jauh. Dekatkan sedikit.")
-            time.sleep(2.0) 
+            time.sleep(1.5) 
             return False
 
         # --- 4b. VALIDASI MARGIN REMOTE (Tidak Terlalu Dekat Tepi Frame) ---
-        MARGIN = 20  # Margin dalam pixel dari tepi frame
+        MARGIN = 50  # Margin dalam pixel dari tepi frame
         frame_height, frame_width = frame_stabil.shape[:2]
         
         # Pakai raw_boxes dari hasil YOLO yang sudah di-compute oleh process_yolo_rotation
@@ -460,11 +506,11 @@ def auto_setup_layout(silent=True):
                         # Hanya satu sisi terpotong, bilang sisi mana
                         sisi = clipped_sides[0]
                         message = f"bagian {sisi} terpotong."
-                        time.sleep(2.0) 
+                        time.sleep(1.5) 
                     else:
                         # Lebih dari satu sisi terpotong, bilang generic
                         message = "Terlalu dekat, Jauhkan sedikit."
-                        time.sleep(2.0) 
+                        time.sleep(1.5) 
                     
                     _speak(message)
                     return False
@@ -489,13 +535,19 @@ def auto_setup_layout(silent=True):
 
         is_layout_ready = True
 
+        _generate_location_descriptions()
+        with open("layout.json", "w") as f:
+            json.dump(layout_data, f, indent=4)
+        lokasi_info = {k: v.get("location_desc", "?") for k, v in layout_data.items()}
+        print(f"[Layout] Lokasi tombol: {lokasi_info}")
+
         _speak("Pemetaan remote berhasil. Mau saya bantu apa?")
 
         return True
 
     if not silent:
         _speak("Remote belum terlihat. Coba arahkan kamera lagi.")
-        time.sleep(2.0) 
+        time.sleep(1.5) 
     return False
 
 
@@ -642,7 +694,7 @@ def detect_current_thumb_touch(write_debug=False):
         )
 
     if thumb_center:
-        cv2.circle(current_drawn_cv, thumb_center, radius=24, color=(0, 0, 255), thickness=-1)
+        cv2.circle(current_drawn_cv, thumb_center, radius=30, color=(0, 0, 255), thickness=-1)
 
         # Mapping koordinat dari crop saat ini ke reference.
         # Jika aspect ratio crop berbeda, pakai scale terpisah per sumbu
@@ -651,7 +703,7 @@ def detect_current_thumb_touch(write_debug=False):
         scale_y = h_ref / max(h_curr, 1)
         rel_x = int(thumb_center[0] * scale_x)
         rel_y = int(thumb_center[1] * scale_y)
-        cv2.circle(reference_drawn_cv, (rel_x, rel_y), radius=24, color=(0, 0, 255), thickness=-1)
+        cv2.circle(reference_drawn_cv, (rel_x, rel_y), radius=30, color=(0, 0, 255), thickness=-1)
 
         # Padding adaptif: makin besar selisih aspect ratio, makin longgar toleransi
         ar_curr = w_curr / max(h_curr, 1)
@@ -746,12 +798,12 @@ def process_vlm_reasoning(user_text):
     normalized_text = re.sub(r"\s+", " ", user_text.lower()).strip()
 
     # Flashlight voice control (tidak perlu VLM)
-    if any(kata in normalized_text for kata in ["senter", "flash", "flashlight", "lampu senter", "torch"]):
+    if any(kata in normalized_text for kata in ["senter", "flash", "flashlight", "lampu senter", "torch", "nyalakan senter", "matikan senter", "nyalakan lampu", "matikan lampu"]):
         _fire_and_forget_post(LOG_URL, json={"sender": "Control", "text": "TOGGLE_FLASH"})
         _speak("Senter")
         return
 
-    if any(phrase in normalized_text for phrase in ["reset layout", "ulang layout", "ganti remote", "remote baru"]):
+    if any(phrase in normalized_text for phrase in ["reset layout", "ulang layout", "ganti remote", "remote baru", "remote berbeda", "reset pemetaan", "ulang dari awal", "ganti remot"]):
         is_layout_ready = False
         active_task_context = DEFAULT_TASK_CONTEXT
         active_task_intent = None
@@ -799,6 +851,7 @@ def process_vlm_reasoning(user_text):
         r'tombol (apa|mana) (ini|itu)',
         r'apa yang (aku|saya) sentuh',
         r'apa (ini|itu) .*(tombol|fungsi)',
+        r'jempol (saya|aku) menyentuh apa',
     ]
     is_what_question = any(re.search(p, normalized_text) for p in what_patterns)
 
@@ -833,8 +886,7 @@ def process_vlm_reasoning(user_text):
             conversation_history.append({"role": "assistant", "content": teks})
             return
 
-    # --- DETEKSI "DIMANA TOMBOLNYA?" SAAT ADA TASK AKTIF ---
-    # Agar VLM tidak salah klasifikasi sebagai "question", tambahkan petunjuk ke prompt
+    # --- HARDCODE "DIMANA TOMBOL X?" TANPA LLM ---
     dimana_patterns = [
         r'\bdimana\b',
         r'\bdi ?mana\b',
@@ -842,9 +894,46 @@ def process_vlm_reasoning(user_text):
         r'(tombol|letak|posisi).*(dimana|di ?mana)',
         r'\bmana\b.*(tombol|letak|posisi)',
     ]
-    is_dimana_dengan_task = has_active_task and any(re.search(p, normalized_text) for p in dimana_patterns)
+    is_dimana_question = any(re.search(p, normalized_text) for p in dimana_patterns)
 
-    if is_dimana_dengan_task:
+    if is_dimana_question and is_layout_ready and layout_data:
+        matched = None
+        # Pass 1: exact match (nama fungsi muncul persis di teks user)
+        for indeks, data in layout_data.items():
+            fungsi = data.get("fungsi", "")
+            if fungsi and fungsi not in ["", "tidak diketahui"] and fungsi in normalized_text:
+                matched = indeks
+                break
+
+        # Pass 2: synonym match (fallback jika exact gagal)
+        if not matched:
+            for indeks, data in layout_data.items():
+                fungsi = data.get("fungsi", "")
+                if fungsi and fungsi not in ["", "tidak diketahui"] and _match_task_texts(normalized_text, fungsi):
+                    matched = indeks
+                    break
+
+        # Pass 3: jika belum match dan ada task aktif, cari berdasarkan task context
+        if not matched and has_active_task:
+            for indeks, data in layout_data.items():
+                if _match_task_texts(active_task_context, data.get("fungsi", "")):
+                    matched = indeks
+                    break
+
+        if matched is not None:
+            lokasi = layout_data[matched].get("location_desc", "")
+            fungsi = layout_data[matched]["fungsi"]
+            if lokasi:
+                teks = f"Tombol {fungsi} berada di {lokasi}."
+                _speak(teks)
+                active_task_context = fungsi
+                active_task_intent = "navigation"
+                conversation_history.append({"role": "user", "content": user_text})
+                conversation_history.append({"role": "assistant", "content": teks})
+                return
+
+    # Jika ada task aktif tapi hardcode gagal, tetap kirim petunjuk ke VLM
+    if is_dimana_question and has_active_task:
         user_text = f"{user_text} [PETUNJUK: Pengguna sedang mencari tombol yang sudah ditugaskan ('{active_task_context}'). JANGAN jawab detail layar. Beri petunjuk arah ke tombol tersebut.]"
 
     # --- PERSIAPAN DATA PROMPT ---
