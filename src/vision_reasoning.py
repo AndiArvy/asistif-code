@@ -66,7 +66,7 @@ layout_data = {}
 # =========================
 SYNONYM_GROUPS = [
     # Power
-    ["power", "on/off", "on", "off", "nyala", "mati", "nyala/mati", "hidup", "matikan", "nyalakan"],
+    ["power", "on/off", "nyala/mati", "hidup", "matikan", "nyalakan"],
 
     # Suhu Naik (Termasuk kata umum suhu/temp untuk tombol hybrid)
     ["suhu naik", "temp up", "temp_up", "naikkan", "up", "tambah", "panas", "temp", "suhu", "plus", "+", "warmer"],
@@ -398,9 +398,39 @@ def _generate_location_descriptions():
     if reference_indexed_image_cv is None or not layout_data:
         return
 
-    h, w = reference_indexed_image_cv.shape[:2]
-    if h == 0 or w == 0:
+    # Kumpulkan pusat tiap tombol
+    centers = []
+    for indeks, data in layout_data.items():
+        bx, by, bw, bh = data["coords"]
+        cx = bx + bw / 2
+        cy = by + bh / 2
+        centers.append((indeks, cx, cy))
+
+    if not centers:
         return
+
+    # Bagi tombol berdasarkan peringkat Y (atas / tengah / bawah)
+    sorted_by_y = sorted(centers, key=lambda c: c[2])
+    n = len(sorted_by_y)
+    y_groups = {}
+    for i, (indeks, _, _) in enumerate(sorted_by_y):
+        if i < n / 3:
+            y_groups[indeks] = 0
+        elif i < 2 * n / 3:
+            y_groups[indeks] = 1
+        else:
+            y_groups[indeks] = 2
+
+    # Bagi tombol berdasarkan peringkat X (kiri / tengah / kanan)
+    sorted_by_x = sorted(centers, key=lambda c: c[1])
+    x_groups = {}
+    for i, (indeks, _, _) in enumerate(sorted_by_x):
+        if i < n / 3:
+            x_groups[indeks] = 0
+        elif i < 2 * n / 3:
+            x_groups[indeks] = 1
+        else:
+            x_groups[indeks] = 2
 
     position_map = {
         (0, 0): "pojok kiri atas",
@@ -415,13 +445,8 @@ def _generate_location_descriptions():
     }
 
     for indeks, data in layout_data.items():
-        bx, by, bw, bh = data["coords"]
-        cx = bx + bw / 2
-        cy = by + bh / 2
-
-        col_idx = min(2, int(cx / (max(w, 1) / 3)))
-        row_idx = min(2, int(cy / (max(h, 1) / 3)))
-
+        col_idx = x_groups.get(indeks, 1)
+        row_idx = y_groups.get(indeks, 1)
         data["location_desc"] = position_map.get((col_idx, row_idx), "tidak diketahui")
 
 
@@ -871,8 +896,7 @@ def process_vlm_reasoning(user_text):
             conversation_history.append({"role": "assistant", "content": teks})
             return
 
-    # --- DETEKSI "DIMANA TOMBOLNYA?" SAAT ADA TASK AKTIF ---
-    # Agar VLM tidak salah klasifikasi sebagai "question", tambahkan petunjuk ke prompt
+    # --- HARDCODE "DIMANA TOMBOL X?" TANPA LLM ---
     dimana_patterns = [
         r'\bdimana\b',
         r'\bdi ?mana\b',
@@ -880,9 +904,38 @@ def process_vlm_reasoning(user_text):
         r'(tombol|letak|posisi).*(dimana|di ?mana)',
         r'\bmana\b.*(tombol|letak|posisi)',
     ]
-    is_dimana_dengan_task = has_active_task and any(re.search(p, normalized_text) for p in dimana_patterns)
+    is_dimana_question = any(re.search(p, normalized_text) for p in dimana_patterns)
 
-    if is_dimana_dengan_task:
+    if is_dimana_question and is_layout_ready and layout_data:
+        matched = None
+        # Cari tombol yang fungsinya cocok dengan pertanyaan user
+        for indeks, data in layout_data.items():
+            fungsi = data.get("fungsi", "")
+            if fungsi and fungsi not in ["", "tidak diketahui"] and _match_task_texts(normalized_text, fungsi):
+                matched = indeks
+                break
+
+        # Jika belum match dan ada task aktif, cari berdasarkan task context
+        if not matched and has_active_task:
+            for indeks, data in layout_data.items():
+                if _match_task_texts(active_task_context, data.get("fungsi", "")):
+                    matched = indeks
+                    break
+
+        if matched is not None:
+            lokasi = layout_data[matched].get("location_desc", "")
+            fungsi = layout_data[matched]["fungsi"]
+            if lokasi:
+                teks = f"Tombol {fungsi} berada di {lokasi}."
+                _speak(teks)
+                active_task_context = fungsi
+                active_task_intent = "navigation"
+                conversation_history.append({"role": "user", "content": user_text})
+                conversation_history.append({"role": "assistant", "content": teks})
+                return
+
+    # Jika ada task aktif tapi hardcode gagal, tetap kirim petunjuk ke VLM
+    if is_dimana_question and has_active_task:
         user_text = f"{user_text} [PETUNJUK: Pengguna sedang mencari tombol yang sudah ditugaskan ('{active_task_context}'). JANGAN jawab detail layar. Beri petunjuk arah ke tombol tersebut.]"
 
     # --- PERSIAPAN DATA PROMPT ---
