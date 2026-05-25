@@ -868,12 +868,18 @@ def process_vlm_reasoning(user_text):
     # --- DETEKSI PERTANYAAN KONFIRMASI TOMBOL ---
     confirm_keywords = {"benar", "betul", "tepat", "sesuai", "cocok", "bener"}
     confirm_patterns = [
-        r'(udah|sudah|apakah).*(benar|betul|tepat|sesuai|cocok|bener)',
-        r'(benar|betul|tepat|sesuai|cocok|bener).*(tidak|nggak|belum|kah|kan)',
-        r'(apakah|apa).*(ini|itu).*(benar|betul|tepat|sesuai)',
-        r'(ini|itu).*(benar|betul|tepat|sesuai|cocok|bener)',
-        r'sudah (tepat|benar|betul)',
+    r'(udah|sudah|apakah).*(benar|betul|tepat|sesuai|cocok|bener)',
+    r'(benar|betul|tepat|sesuai|cocok|bener).*(tidak|nggak|belum|kah|kan)',
+    r'(apakah|apa).*(ini|itu).*(benar|betul|tepat|sesuai)',
+    r'(ini|itu).*(benar|betul|tepat|sesuai|cocok|bener)',
+    r'sudah (tepat|benar|betul)',
+    r'(tombol|menu|opsi|pilihan|yang)?\s*(ini|itu)\s*(kah|kan|ya|bukan)\b',
+    r'(apakah|apa)\b.*(tombol|menu|opsi|pilihan|yang)?.*(ini|itu)\b',
+    r'(pilih|klik|tekan|pencet|pakai)\b.*(tombol|menu|opsi|pilihan|yang)?.*(ini|itu)\b',
+    r'(maksud|maksudnya)\b.*(yang|tombol|menu)?.*(ini|itu)\b'
     ]
+
+    # Logika pengecekan
     is_confirm = any(w in confirm_keywords for w in words) or any(re.search(p, normalized_text) for p in confirm_patterns)
 
     if is_confirm and has_active_task and is_touch_valid:
@@ -882,6 +888,23 @@ def process_vlm_reasoning(user_text):
             _speak(teks)
             active_task_context = DEFAULT_TASK_CONTEXT
             active_task_intent = None
+            conversation_history.append({"role": "user", "content": user_text})
+            conversation_history.append({"role": "assistant", "content": teks})
+            return
+        else:
+            matched = None
+            for indeks, data in layout_data.items():
+                fungsi = data.get("fungsi", "")
+                if fungsi and fungsi not in ["", "tidak diketahui"]:
+                    if _match_task_texts(active_task_context, fungsi):
+                        matched = indeks
+                        break
+            if matched:
+                lokasi = layout_data[matched].get("location_desc", "")
+                teks = f"Sebenarnya, ini tombol {current_touched_fungsi}, bukan {active_task_context}, coba raba di {lokasi}."
+            else:
+                teks = f"Maaf, ini tombol {current_touched_fungsi}, bukan {active_task_context}."
+            _speak(teks)
             conversation_history.append({"role": "user", "content": user_text})
             conversation_history.append({"role": "assistant", "content": teks})
             return
