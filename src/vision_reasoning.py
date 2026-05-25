@@ -66,7 +66,7 @@ layout_data = {}
 # =========================
 SYNONYM_GROUPS = [
     # Power
-    ["power", "on/off", "nyala/mati", "hidup", "matikan", "nyalakan"],
+    ["power", "on/off", "on", "off", "nyala", "mati", "nyala/mati", "hidup", "matikan", "nyalakan"],
 
     # Suhu Naik (Termasuk kata umum suhu/temp untuk tombol hybrid)
     ["suhu naik", "temp up", "temp_up", "naikkan", "up", "tambah", "panas", "temp", "suhu", "plus", "+", "warmer"],
@@ -398,39 +398,9 @@ def _generate_location_descriptions():
     if reference_indexed_image_cv is None or not layout_data:
         return
 
-    # Kumpulkan pusat tiap tombol
-    centers = []
-    for indeks, data in layout_data.items():
-        bx, by, bw, bh = data["coords"]
-        cx = bx + bw / 2
-        cy = by + bh / 2
-        centers.append((indeks, cx, cy))
-
-    if not centers:
+    h, w = reference_indexed_image_cv.shape[:2]
+    if h == 0 or w == 0:
         return
-
-    # Bagi tombol berdasarkan peringkat Y (atas / tengah / bawah)
-    sorted_by_y = sorted(centers, key=lambda c: c[2])
-    n = len(sorted_by_y)
-    y_groups = {}
-    for i, (indeks, _, _) in enumerate(sorted_by_y):
-        if i < n / 3:
-            y_groups[indeks] = 0
-        elif i < 2 * n / 3:
-            y_groups[indeks] = 1
-        else:
-            y_groups[indeks] = 2
-
-    # Bagi tombol berdasarkan peringkat X (kiri / tengah / kanan)
-    sorted_by_x = sorted(centers, key=lambda c: c[1])
-    x_groups = {}
-    for i, (indeks, _, _) in enumerate(sorted_by_x):
-        if i < n / 3:
-            x_groups[indeks] = 0
-        elif i < 2 * n / 3:
-            x_groups[indeks] = 1
-        else:
-            x_groups[indeks] = 2
 
     position_map = {
         (0, 0): "pojok kiri atas",
@@ -445,8 +415,13 @@ def _generate_location_descriptions():
     }
 
     for indeks, data in layout_data.items():
-        col_idx = x_groups.get(indeks, 1)
-        row_idx = y_groups.get(indeks, 1)
+        bx, by, bw, bh = data["coords"]
+        cx = bx + bw / 2
+        cy = by + bh / 2
+
+        col_idx = min(2, int(cx / (max(w, 1) / 3)))
+        row_idx = min(2, int(cy / (max(h, 1) / 3)))
+
         data["location_desc"] = position_map.get((col_idx, row_idx), "tidak diketahui")
 
 
