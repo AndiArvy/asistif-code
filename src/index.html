@@ -158,6 +158,11 @@
             isTtsPlaying = false;
         };
 
+        // --- Vibration feedback (haptic) ---
+        function vibrate(pattern) {
+            if (navigator.vibrate) navigator.vibrate(pattern);
+        }
+
         // --- Web Speech API (Offline TTS via browser native) ---
         function isSpeechSynthesisSupported() {
             return 'speechSynthesis' in window;
@@ -240,6 +245,8 @@
             if (isHolding) return;
             isHolding = true;
 
+            vibrate(100);
+
             if (isTtsPlaying) {
                 if (useWebSpeech && isSpeechSynthesisSupported()) {
                     window.speechSynthesis.cancel();
@@ -269,6 +276,8 @@
             clearTimeout(holdSafetyTimer);
             if (!isHolding) return;
             isHolding = false;
+
+            vibrate([30, 30, 30]);
 
             setMicEnabled(false);
 
@@ -314,7 +323,15 @@
                     // Fallback: request audio from server if Web Speech fails
                     addLog("Sistem", "Web Speech gagal, fallback ke audio server.", "system-msg");
                 }
-                if (data.text) addLog("Sistem AI", data.text, "ai-msg");
+                if (data.text) {
+                    addLog("Sistem AI", data.text, "ai-msg");
+                    const t = data.text.toLowerCase();
+                    if (t.includes("itu tombolnya") || t.includes("tombol yang tepat")) {
+                        vibrate([100, 50, 100]);
+                    } else if (t.includes("hilang") || t.includes("terlalu jauh") || t.includes("tidak terlihat") || t.includes("belum terlihat") || t.includes("terpotong")) {
+                        vibrate(400);
+                    }
+                }
             }
             else if (data.type === "audio") {
                 if (isTtsPlaying) {
