@@ -20,7 +20,7 @@ Dokumen ini mencatat keputusan arsitektur utama yang diambil selama pengembangan
 
 **Konsekuensi:**
 - Kompleksitas signaling (SDP offer/answer)
-- Bergantung pada browser — fitur torch/torch tidak konsisten antar browser
+- Bergantung pada browser — fitur torch tidak konsisten antar browser
 - Perlu `av` library untuk resample audio
 
 ---
@@ -60,8 +60,8 @@ Dokumen ini mencatat keputusan arsitektur utama yang diambil selama pengembangan
 
 **Konsekuensi:**
 - ~2GB model, loading lambat
-- Threshold 0.1 untuk recall tinggi, kadang over-detect (difilter dengan area threshold 15%)
-- Fallback ke YOLO crop + layout prior jika OWL gagal
+- Threshold 0.09 untuk recall tinggi, kadang over-detect (difilter area 15% + NMS)
+- Hanya digunakan saat setup layout, tidak untuk runtime
 
 ---
 
@@ -77,6 +77,7 @@ Dokumen ini mencatat keputusan arsitektur utama yang diambil selama pengembangan
 - OBB memberikan sudut rotasi langsung dari model
 - YOLOv8 OBB sudah terintegrasi di Ultralytics — tanpa preprocessing tambahan
 - Lock portrait memastikan orientasi konsisten untuk mapping layout
+- Fallback ke axis-aligned boxes jika OBB tidak tersedia
 
 **Konsekuensi:**
 - Model `best.pt` harus support OBB
@@ -106,23 +107,24 @@ Dokumen ini mencatat keputusan arsitektur utama yang diambil selama pengembangan
 
 ---
 
-## ADR-006: gTTS untuk Text-to-Speech
+## ADR-006: gTTS + Web Speech API untuk Text-to-Speech
 
 **Status:** Accepted
 
-**Konteks:** Perlu TTS bahasa Indonesia. Opsi: gTTS (online), pyttsx3 (offline), Coqui (offline ML).
+**Konteks:** Perlu TTS bahasa Indonesia. Opsi: gTTS (online), Web Speech API (offline browser native), pyttsx3 (offline), Coqui (offline ML).
 
-**Keputusan:** Google gTTS dengan cache lokal.
+**Keputusan:** Hybrid: gTTS sebagai default + Web Speech API sebagai opsi offline.
 
 **Alasan:**
-- Suara natural, aksen Indonesia baik
+- Web Speech API: TTS offline tanpa internet, zero server load, instant
+- gTTS: suara natural, aksen Indonesia baik, fallback jika Web Speech tidak tersedia
 - TTS cache (`tts_cache.py`) mengurangi latency untuk frasa umum
-- Tidak perlu model ML tambahan di lokal
+- Browser mendeteksi kapabilitas dan mengirim `capability` ke server
 
 **Konsekuensi:**
-- Perlu koneksi internet untuk TTS baru (cache mengurangi ini)
-- Latency ~1-2 detik untuk generate baru
-- Tidak bisa offline sepenuhnya tanpa preload cache
+- Dua mode TTS perlu di-handle di frontend dan server
+- Web Speech API kualitas suara tergantung browser/OS
+- gTTS masih perlu internet untuk generate baru (cache mengurangi ini)
 
 ---
 
@@ -138,11 +140,13 @@ Dokumen ini mencatat keputusan arsitektur utama yang diambil selama pengembangan
 - Menghindari false positive dari percakapan di sekitar
 - Lebih intuitif untuk tunanetra (tactile feedback dari layar)
 - Memudahkan segmentasi audio (mulai dan akhir jelas)
+- Dual event: touch events (mobile) + pointer events (desktop fallback)
 - Safety timeout 30 detik jika pointerup tidak pernah sampai
 
 **Konsekuensi:**
 - User harus selalu menyentuh layar — tidak bisa hands-free
 - Perlu penanganan event touch + pointer untuk kompatibilitas browser
+- Perlu drain time 0.4s setelah touchend untuk menangkap sisa audio
 
 ---
 
@@ -152,12 +156,13 @@ Dokumen ini mencatat keputusan arsitektur utama yang diambil selama pengembangan
 
 **Konteks:** Setelah memberi panduan arah, user menggeser jempol. Sistem perlu mendeteksi kapan jempol sampai di tombol yang benar tanpa menunggu pertanyaan konfirmasi.
 
-**Keputusan:** Thread terpisah (`background_task_monitor_loop`) yang mengecek posisi jempol setiap 500ms.
+**Keputusan:** Thread daemon terpisah (`background_task_monitor_loop`) yang mengecek posisi jempol setiap 500ms.
 
 **Alasan:**
 - Mengurangi jumlah interaksi — user tidak perlu bertanya "apakah ini tombol yang benar?"
 - Real-time — konfirmasi otomatis saat jempol menyentuh target
 - Thread terpisah agar tidak memblokir pipeline utama
+- Snapshot task & intent untuk mencegah race condition
 
 **Konsekuensi:**
 - Thread concurrency — perlu `vision_processing_lock`
@@ -172,15 +177,16 @@ Dokumen ini mencatat keputusan arsitektur utama yang diambil selama pengembangan
 
 **Konteks:** User tunanetra tidak bisa melihat apakah remote sudah terdeteksi. Sistem perlu mendeteksi secara otomatis tanpa perintah eksplisit.
 
-**Keputusan:** Background loop `auto_scan_layout()` setiap 2-3 detik mengecek keberadaan remote.
+**Keputusan:** Background loop `auto_scan_layout()` setiap 3 detik mengecek keberadaan remote.
 
 **Alasan:**
 - User tidak perlu mengucapkan "setup layout" secara manual
 - Deteksi dini — sistem langsung memproses saat remote masuk frame
-- Stabilisasi 2 detik mencegah blur/autofocus
+- Stabilisasi 1.5 detik mencegah blur/autofocus
+- Validasi ukuran (>60000 px) dan margin (50px) cegah false positive
 
 **Konsekuensi:**
-- YOLO inference setiap 2 detik (boros GPU jika tidak ada remote)
+- YOLO inference setiap 3 detik (boros GPU jika tidak ada remote)
 - Layout reset manual tetap diperlukan untuk ganti remote
 
 ---
@@ -203,3 +209,44 @@ Dokumen ini mencatat keputusan arsitektur utama yang diambil selama pengembangan
 - Tidak ada isolasi — crash satu komponen menghentikan semua
 - Kurang cocok untuk multi-user
 - Tidak scalable horizontal
+
+---
+
+## ADR-011: Audio Buffer Hold-to-Speak (Bukan Continuous VAD)
+
+**Status:** Accepted
+
+**Konteks:** Awalnya sistem menggunakan continuous Voice Activity Detection (VAD). Masalah: false positive dari suara sekitar, segmentasi tidak akurat.
+
+**Keputusan:** Hold-to-speak dengan audio buffer (`hold_audio_buffer`) yang dikumpulkan saat `hold_to_speak_active=True` atau `draining=True`.
+
+**Alasan:**
+- Segmentasi audio sempurna — mulai dan akhir ditentukan user
+- `draining` flag 0.4s menangkap audio setelah touchend
+- Filter buffer < 2048 bytes untuk mencegah false positive
+- `system_is_busy` flag mencegah tumpang tindih pemrosesan
+
+**Konsekuensi:**
+- Frontend perlu handle touch + pointer events
+- Safety timeout 30 detik untuk mencegah buffer tak terbatas
+
+---
+
+## ADR-012: Hardcode Tanpa VLM untuk Perintah Umum
+
+**Status:** Accepted
+
+**Konteks:** Beberapa perintah user tidak perlu VLM (lambat, boros GPU, bisa error). Contoh: "senter", "apa tombol ini?", "dimana tombol X?", konfirmasi.
+
+**Keputusan:** Handle perintah umum dengan regex + hardcode lookup, tanpa memanggil LM Studio.
+
+**Alasan:**
+- Lebih cepat (ms vs detik)
+- Lebih reliable (tidak tergantung kualitas LLM)
+- Mengurangi beban GPU
+- Pattern matching cukup akurat untuk perintah sederhana
+
+**Konsekuensi:**
+- Perlu maintenance SYNONYM_GROUPS untuk akurasi matching
+- Regex patterns perlu diupdate jika ada variasi bahasa baru
+- Tidak bisa handle pertanyaan kompleks tanpa VLM

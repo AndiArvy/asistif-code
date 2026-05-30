@@ -7,8 +7,10 @@ Sistem asisten berbasis AI untuk penyandang tunanetra yang membantu mengoperasik
 - **Perintah Suara** — Tekan & tahan layar HP, bicara, lepas untuk proses (Whisper STT)
 - **Navigasi Taktil** — Panduan arah jempol ke tombol remote dengan deteksi real-time (YOLO)
 - **Deteksi Tombol Otomatis** — Zero-shot object detection (OWL-ViT) + mapping fungsi via VLM
-- **Umpan Balik Suara** — TTS otomatis (gTTS) untuk setiap respon
+- **Umpan Balik Suara** — TTS otomatis (gTTS) + Web Speech API offline untuk setiap respon
 - **Navigasi Layar Real-time** — Background monitor mendeteksi sentuhan jempol tanpa perlu bertanya
+- **Auto-Confirm** — Sistem otomatis konfirmasi saat jempol menyentuh tombol target
+- **Kontrol Senter** — Perintah suara "senter" untuk menyalakan/mematikan lampu HP
 - **Mode Hybrid** — Input terminal untuk testing tanpa HP
 
 ## Arsitektur Singkat
@@ -50,8 +52,6 @@ venv\Scripts\activate      # Windows
 ```bash
 pip install -r requirements.txt
 ```
-
-> Catatan: Jika `requirements.txt` belum tersedia, instal manual: `aiohttp`, `aiortc`, `av`, `faster-whisper`, `ultralytics`, `transformers`, `torch`, `torchvision`, `gtts`, `opencv-python`, `numpy`, `websockets`, `requests`, `Pillow`, `websocket-client`.
 
 ### 4. Siapkan model AI
 
@@ -103,12 +103,20 @@ python src/hybrid_inference.py
 |----------|---------|-----------|
 | `SERVER_HOST` | `0.0.0.0` | Host binding server |
 | `SERVER_PORT` | `8080` | Port server |
+| `JPEG_QUALITY` | `99` | Kualitas JPEG frame video |
 | `TTS_PLAYBACK_RATE` | `1.2` | Kecepatan playback TTS |
 | `WHISPER_MODEL_SIZE` | `deepdml/faster-whisper-large-v3-turbo-ct2` | Model Whisper |
 | `WHISPER_DEVICE` | `cuda` | Device Whisper |
+| `WHISPER_COMPUTE_TYPE` | `int8_float16` | Compute type Whisper |
+| `WHISPER_CPU_THREADS` | `8` | CPU threads untuk Whisper |
+| `WHISPER_BEAM_SIZE` | `1` | Beam size Whisper |
+| `WHISPER_BEST_OF` | `1` | Best of candidates Whisper |
+| `WHISPER_MIN_SILENCE_MS` | `500` | Min silence duration untuk VAD |
 | `YOLO_MODEL_PATH` | `best.pt` | Path model YOLO |
 | `YOLO_CONF_THRESHOLD` | `0.3` | Confidence threshold YOLO |
 | `YOLO_FORCE_PORTRAIT` | `true` | Paksa output portrait |
+| `YOLO_INVERT_OBB_ANGLE` | `false` | Balik arah rotasi OBB |
+| `OWL_MODEL_NAME` | `google/owlv2-base-patch16-ensemble` | Model OWL-ViT |
 | `VISION_DEBUG` | `true` | Simpan debug images |
 | `MAX_CONVERSATION_HISTORY` | `20` | Maks riwayat percakapan |
 

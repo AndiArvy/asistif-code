@@ -69,7 +69,7 @@ Menggunakan event-driven `asyncio.Event()` — tidak melakukan polling busy-loop
 
 ### `POST /trigger_tts`
 
-Generate dan kirim TTS ke semua frontend clients.
+Generate dan kirim TTS via gTTS ke semua frontend clients.
 
 **Request:**
 ```json
@@ -83,13 +83,37 @@ Generate dan kirim TTS ke semua frontend clients.
 **Response:** `text/plain` — "Suara berhasil dikirim ke HP" atau error.
 
 **Alur:**
-1. Cek cache TTS jika `use_cache=true` dan `cache_file` disediakan
-2. Path traversal dicegah — file harus di dalam `cache_dir`
-3. Jika tidak ada cache → generate via gTTS
-4. Simpan ke cache lokal
-5. Kirim `{type:"audio", audio:base64, text, playback_rate}` ke semua frontend WebSocket
+1. Jika ada client Web Speech → kirim teks via Web Speech API (skip gTTS)
+2. Cek cache TTS jika `use_cache=true` dan `cache_file` disediakan
+3. Path traversal dicegah — file harus di dalam `cache_dir`
+4. Jika tidak ada cache → generate via gTTS
+5. Simpan ke cache lokal
+6. Kirim `{type:"audio", audio:base64, text, playback_rate}` ke semua frontend WebSocket
 
-**Catatan Keamanan:** `cache_file` divalidasi agar tidak keluar dari `cache_dir` (path traversal protection).
+---
+
+### `POST /trigger_speak`
+
+Kirim teks TTS via Web Speech API langsung ke browser HP. Zero server load, offline TTS.
+
+**Request:**
+```json
+{
+  "text": "string (teks yang akan diucapkan)",
+  "lang": "id-ID",
+  "fallback_to_gtts": true
+}
+```
+
+**Response:**
+- `200 OK` — "Suara berhasil dikirim via Web Speech (offline)"
+- `200 OK` — "Suara berhasil dikirim via gTTS (fallback)"
+- `503` — "Tidak ada client yang terhubung untuk TTS"
+
+**Alur:**
+1. Jika ada client Web Speech → kirim `{type:"speak", text, lang}` via WebSocket
+2. Jika tidak ada client Web Speech + `fallback_to_gtts=true` → panggil gTTS internal
+3. Jika tidak ada client dan fallback=false → return 503
 
 ---
 
@@ -100,7 +124,7 @@ Menerima log dari script Python dan meneruskannya ke frontend HP.
 **Request:**
 ```json
 {
-  "sender": "User | Sistem | Error",
+  "sender": "User | Sistem | Control | Error",
   "text": "string (isi pesan)"
 }
 ```
@@ -108,6 +132,8 @@ Menerima log dari script Python dan meneruskannya ke frontend HP.
 **Response:** `text/plain` — "Log terkirim ke HP"
 
 **Broadcast:** Pesan dikirim ke semua koneksi `/frontend_ws` sebagai `{type:"log", sender, text}`.
+
+**Special sender:** `"Control"` dengan text `"TOGGLE_FLASH"` akan menyalakan/mematikan senter HP.
 
 ---
 
@@ -125,11 +151,14 @@ Memicu pre-generation semua frasa TTS umum (digunakan saat startup).
 
 ### `WS /frontend_ws`
 
-WebSocket utama untuk komunikasi dengan frontend HP.
+WebSocket utama untuk komunikasi bidirectional dengan frontend HP.
 
 **Pesan dari Server (HP menerima):**
 ```json
-// Audio TTS
+// Web Speech API TTS (offline)
+{"type": "speak", "text": "string", "lang": "id-ID"}
+
+// gTTS Audio (base64)
 {"type": "audio", "audio": "base64...", "text": "string", "playback_rate": 1.2}
 
 // Log chat
@@ -141,11 +170,15 @@ WebSocket utama untuk komunikasi dengan frontend HP.
 
 **Pesan dari Client (server menerima):**
 ```json
+// Hold-to-speak action
 {"type": "hold_action", "action": "start_listening"}
 {"type": "hold_action", "action": "stop_listening"}
+
+// Client capability
+{"type": "capability", "tts_mode": "webspeech"}
 ```
 
-Pesan `hold_action` dari HP diteruskan ke `/command_feed` untuk diproses oleh `audio_inference.py`.
+Pesan `hold_action` dari HP diteruskan ke `/command_feed` untuk diproses oleh `audio_inference.py`. Pesan `capability` mendaftarkan client sebagai pendukung Web Speech API.
 
 ---
 
@@ -157,19 +190,22 @@ Menerima audio dari server dan mengirimkannya ke client Python (audio_inference.
 
 **Alur:**
 1. `server_vision.py` menerima audio track dari HP via WebRTC
-2. Audio di-resample ke format s16, mono, 16000 Hz
+2. Audio di-resample ke format s16, mono, 16000 Hz via `AudioResampler`
 3. Byte stream dikirim ke semua client `/audio_feed`
 
 ---
 
 ### `WS /command_feed`
 
-Meneruskan perintah tap layar / hold-to-speak dari HP ke `audio_inference.py`.
+Meneruskan perintah hold-to-speak dan tap dari HP ke `audio_inference.py`.
 
 **Pesan:**
 ```json
+// Hold-to-speak signals
 {"type": "hold_action", "action": "start_listening"}
 {"type": "hold_action", "action": "stop_listening"}
+
+// Tap command
 {"text": "ambil_layout"}
 ```
 
@@ -209,7 +245,7 @@ Sistem menggunakan LM Studio sebagai VLM backend di port `1234`. API kompatibel 
 
 **Dua tipe request VLM:**
 1. **Mapping layout** (`map_functions_with_vlm`) — 2 gambar (clean + indexed) → output JSON mapping b1..bN ke fungsi
-2. **VLM Reasoning** (`process_vlm_reasoning`) — 1 gambar (current crop + overlay) + user text → output JSON intent + instruksi
+2. **VLM Reasoning** (`process_vlm_reasoning`) — 1 gambar (current crop + overlay bbox + thumb marker) + user text → output JSON intent + instruksi
 
 ---
 
@@ -223,10 +259,13 @@ HP Browser                     Server PC (port 8080)               AI Backend (p
 │                              │← audio_feed WS ← audio_inference  │
 ├── WebRTC audio → resample 16kHz                                  │
 ├── /frontend_ws ← TTS audio   │                                    │
+│              ← TTS speak     │                                    │
 │              ← log chat      │                                    │
-└── /frontend_ws → hold_action → command_feed → audio_inference    │
-                                                                   │
-                                         vision_reasoning → LM Studio (VLM)
-                                                            ↑ layout mapping
-                                                            ↑ VLM reasoning
+├── /frontend_ws → hold_action → command_feed → audio_inference    │
+│              → capability    │                                    │
+└── /frontend_ws → Control:TOGGLE_FLASH                            │
+                                                                    │
+                                          vision_reasoning → LM Studio (VLM)
+                                                             ↑ layout mapping
+                                                             ↑ VLM reasoning
 ```

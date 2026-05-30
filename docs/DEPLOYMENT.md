@@ -12,8 +12,8 @@ Panduan untuk menjalankan sistem dalam mode produksi.
 │                      │ WebRTC │                          │
 │  Chrome / Safari     │◄──────►│  server_vision.py:8080   │
 │  Kamera + Mic + Spkr │        │  audio_inference.py      │
-└──────────────────────┘        │  vision_reasoning.py     │
-                                │  LM Studio (port 1234)   │
+│  Web Speech API      │        │  vision_reasoning.py     │
+└──────────────────────┘        │  LM Studio (port 1234)   │
                                 │  GPU (CUDA)              │
                                 └─────────────────────────┘
 ```
@@ -58,12 +58,7 @@ pip install --upgrade pip
 ### 2. Instal Dependensi
 
 ```bash
-# Opsional: Install PyTorch dengan CUDA terlebih dahulu
-# pip install torch torchvision --index-url https://download.pytorch.org/whl/cu118
-
-pip install aiohttp aiortc av faster-whisper ultralytics \
-            transformers torch torchvision gtts opencv-python \
-            numpy websockets requests Pillow
+pip install -r requirements.txt
 ```
 
 ### 3. Siapkan Model AI
@@ -93,9 +88,7 @@ pip install aiohttp aiortc av faster-whisper ultralytics \
 # Server
 SERVER_HOST=0.0.0.0         # Bind ke semua interface (default)
 SERVER_PORT=8080             # Port HTTP + WebRTC
-
-# Keamanan (recommended)
-# SERVER_HOST=192.168.1.10  # Bind ke IP LAN spesifik
+JPEG_QUALITY=85              # Kualitas JPEG (lebih rendah = lebih cepat)
 
 # TTS
 TTS_PLAYBACK_RATE=1.2
@@ -104,10 +97,13 @@ TTS_PLAYBACK_RATE=1.2
 WHISPER_DEVICE=cuda          # atau "cpu" untuk CPU-only
 WHISPER_COMPUTE_TYPE=int8_float16
 WHISPER_MODEL_SIZE=deepdml/faster-whisper-large-v3-turbo-ct2
+WHISPER_CPU_THREADS=8
 
 # YOLO
 YOLO_MODEL_PATH=best.pt
 YOLO_CONF_THRESHOLD=0.3
+YOLO_FORCE_PORTRAIT=true
+YOLO_INVERT_OBB_ANGLE=false
 
 # Debug (matikan di produksi)
 VISION_DEBUG=false
@@ -173,6 +169,7 @@ Tips:
 - Set `WHISPER_COMPUTE_TYPE=int8` untuk mengurangi VRAM Whisper
 - Set `YOLO_CONF_THRESHOLD=0.4` untuk mengurangi FP
 - Nonaktifkan `VISION_DEBUG` di produksi
+- Turunkan `JPEG_QUALITY` ke 85 untuk mengurangi bandwidth
 
 ### Network Optimization
 
@@ -200,6 +197,12 @@ Tips:
 - Cek izin browser: Settings → Mic → Allow
 - Coba restart browser
 
+### Hold-to-Speak Tidak Berfungsi
+- Pastikan browser mendukung pointer events
+- Coba sentuh layar di area bukan tombol
+- Cek console server untuk log `[Hold] MULAI mendengarkan...`
+- Safety timeout 30 detik — jika tidak, coba reload halaman
+
 ### Layout Setup Fails Repeatedly
 - Pastikan remote dalam fokus dan tidak blur
 - Cek pencahayaan — minimal cahaya ruangan cukup
@@ -207,7 +210,7 @@ Tips:
 - Cek `debug_frame.jpg` dan `debug_cropped.jpg` untuk debugging
 
 ### GPU Out of Memory
-- Turunkan `WHISPER_COMPUTE_TYPE=float16`
+- Turunkan `WHISPER_COMPUTE_TYPE=int8`
 - Gunakan model Whisper lebih kecil: `base` atau `small`
 - Tutup aplikasi lain yang menggunakan GPU
 - Restart LM Studio dengan model lebih kecil
@@ -225,6 +228,7 @@ Sistem menyediakan:
    - `debug_current_guided.jpg` — overlay tombol + jempol
    - `debug_*_reference.jpg` — reference layout images
 3. **TTSCache** — `tts_cache/cache_index.json` untuk audit TTS
+4. **Layout JSON** — `layout.json` untuk hasil mapping tombol
 
 Untuk logging production, redirect stdout:
 ```bash
@@ -239,6 +243,6 @@ python src/audio_inference.py > logs/audio.log 2>&1
 **Peringatan:** Sistem ini didesain untuk penggunaan personal di jaringan lokal.
 
 - **Bind ke LAN saja** — Set `SERVER_HOST=192.168.1.10` (IP lokal) untuk mencegah akses dari jaringan luar
-- **Path traversal** — Endpoint `/trigger_tts` sudah memiliki validasi path
+- **Path traversal** — Endpoint `/trigger_tts` sudah memiliki validasi path traversal
 - **LM Studio** — API lokal, tidak terekspos ke network
 - **Tidak ada autentikasi** — Cocok untuk lingkungan terpercaya. Untuk akses publik, tambahkan reverse proxy (nginx) dengan autentikasi

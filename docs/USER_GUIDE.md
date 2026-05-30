@@ -17,7 +17,7 @@ Panduan ini untuk pengguna tunanetra yang akan menggunakan sistem asisten remote
 
 Minta pendamping Anda untuk:
 1. Menyalakan PC
-2. Menjalankan program server (3 langkah di terminal)
+2. Menjalankan program server (2 langkah di terminal)
 3. Memberi tahu Anda alamat yang harus diketik di HP (contoh: `http://192.168.1.10:8080`)
 
 ---
@@ -66,6 +66,7 @@ Setelah ini, sistem siap digunakan.
 - Bicara dengan jelas dan tidak terlalu cepat
 - Tidak perlu berteriak — volume normal sudah cukup
 - Jika sistem sibuk, tunggu sampai selesai bicara sebelum perintah baru
+- HP akan bergetar saat Anda mulai/tidak lagi mendengarkan
 
 ---
 
@@ -79,7 +80,7 @@ Sistem akan memandu Anda menggeser jempol ke tombol yang benar.
 **Yang perlu Anda lakukan:**
 1. Ikuti panduan arah (atas, bawah, kiri, kanan)
 2. Geser jempol perlahan di permukaan remote
-3. Saat jempol menyentuh tombol yang benar, sistem akan otomatis berkata:
+3. Saat jempol menyentuh tombol yang benar, sistem akan **otomatis** berkata:
    > "Nah, yang itu tombolnya."
 
 Atau jika Anda ragu, tanyakan:
