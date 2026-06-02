@@ -34,7 +34,7 @@ Sistem ini adalah **asisten berbasis AI untuk penyandang tunanetra** yang memban
 | Server WebRTC | Python (aiohttp, aiortc) | Menjembatani HP dengan PC |
 | Frontend HP | HTML/JS + WebRTC | Streaming video/audio dari HP, Web Speech API |
 | Speech-to-Text | Faster-Whisper | Konversi suara ke teks |
-| Vision AI | YOLOv8 + OWL-ViT + LLM | Deteksi remote, tombol, dan jempol |
+| Vision AI | YOLOv26n OBB + OWL-ViT + LLM | Deteksi remote, tombol, dan jempol |
 | Text-to-Speech | Google gTTS + Web Speech API | Umpan balik suara ke pengguna |
 
 **Aliran Data Utama:**
@@ -57,9 +57,9 @@ Sistem menggunakan **arsitektur Client-Server** dengan dua entitas utama:
 
 ### Server (PC)
 - **Port 8080** — Server WebRTC utama
-- **Port 1234** — LM Studio (LLM Vision lokal)
+- **Port 1234** — LM Studio (Qwen3.5 9B Vision lokal)
 - Menjalankan: `server_vision.py` + `audio_inference.py`
-- Model AI: YOLOv8 (`best.pt`), OWL-ViT, Faster-Whisper, LLM
+- Model AI: YOLOv26n OBB (`best.pt`), OWL-ViT, Faster-Whisper, Qwen3.5 9B (LM Studio)
 
 ### Client (HP)
 - Browser membuka `http://<IP_PC>:8080`
@@ -109,7 +109,7 @@ code2/
 │   ├── vision_http.py          # HTTP utilities (LM Studio, snapshot, TTS, ThreadPool)
 │   ├── tts_cache.py            # Cache TTS lokal dengan MD5 index
 │   └── hybrid_inference.py     # [ALTERNATIF] Input terminal + tap layar
-├── best.pt                     # Model YOLOv8 (remote + jempol detection)
+├── best.pt                     # Model YOLOv26n OBB (remote + jempol detection)
 ├── tts_cache/                  # Folder cache suara TTS
 │   └── cache_index.json        # Index mapping hash → filename
 ├── layout.json                 # Hasil mapping tombol remote
@@ -410,7 +410,7 @@ Sistem matching cerdas dengan 3 mekanisme:
 **Model yang dimuat:**
 | Model | Tipe | Fungsi |
 |-------|------|--------|
-| YOLO `best.pt` | Ultralytics YOLOv8 | Deteksi remote (class 0) & jempol (class 1) |
+| YOLOv26n OBB `best.pt` | Ultralytics (custom OBB) | Deteksi remote (class 0) & jempol (class 1) |
 | OWL-ViT Processor | `owlv2-base-patch16-ensemble` | Preprocessing untuk OWL |
 | OWL-ViT Model | `owlv2-base-patch16-ensemble` | Zero-shot object detection tombol |
 
@@ -788,7 +788,7 @@ Thread Safety:
 
 ## Cara Menjalankan
 
-1. **Jalankan LM Studio** di port 1234 dengan model vision
+1. **Jalankan LM Studio** di port 1234 dengan Qwen3.5 9B (model vision)
 2. **Jalankan server utama:**
    ```bash
    python src/server_vision.py

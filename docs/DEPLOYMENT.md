@@ -69,7 +69,7 @@ pip install -r requirements.txt
 - Model harus support OBB (Oriented Bounding Box) untuk rotasi remote
 
 **LM Studio**
-1. Download model vision (contoh: `llava-v1.6-mistral-7b`, `cogvlm2-llama3-19b`)
+1. Download model vision (`qwen3.5-9b-vl` atau model vision lainnya)
 2. Buka LM Studio → Load model
 3. Start API server di `localhost:1234`
 4. Pastikan `CORS` diaktifkan (Settings → CORS → Allow all origins)
@@ -158,12 +158,12 @@ sudo systemctl start remote-ac-assistive@audio_inference
 
 ### GPU Memory Management
 
-- YOLO ~1-2 GB VRAM
+- YOLOv26n OBB ~1-2 GB VRAM
 - OWL-ViT ~2-3 GB VRAM (hanya saat setup layout)
 - Faster-Whisper ~2-3 GB VRAM
-- LM Studio ~6-12 GB VRAM (tergantung model)
+- LM Studio (Qwen3.5 9B) ~8-10 GB VRAM
 
-**Total: 10-16 GB VRAM** — pastikan GPU mencukupi.
+**Total: ~14-18 GB VRAM** — pastikan GPU 16GB+ mencukupi.
 
 Tips:
 - Set `WHISPER_COMPUTE_TYPE=int8` untuk mengurangi VRAM Whisper

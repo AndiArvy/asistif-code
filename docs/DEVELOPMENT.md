@@ -26,7 +26,7 @@ code2/
 │   ├── USER_GUIDE.md             # Panduan pengguna
 │   ├── DEVELOPMENT.md            # Panduan pengembangan (ini)
 │   └── code_review.md            # Laporan code review
-├── best.pt                       # Model YOLOv8 (remote + jempol detection)
+├── best.pt                       # Model YOLOv26n OBB (remote + jempol detection)
 ├── tts_cache/                    # Cache TTS lokal
 │   └── cache_index.json          # Index mapping hash → file
 ├── layout.json                   # Hasil mapping tombol remote
@@ -43,7 +43,7 @@ code2/
 | WebRTC Server | aiohttp + aiortc | 3.9+ / 1.5+ |
 | Frontend | HTML/JS (vanilla) | ES2020 |
 | Speech-to-Text | faster-whisper | large-v3-turbo |
-| Object Detection | Ultralytics YOLOv8 | 8.x |
+| Object Detection | Ultralytics YOLOv26n OBB | custom |
 | Zero-shot Detection | HuggingFace OWL-ViT | owlv2-base |
 | Vision LLM | LM Studio API | OpenAI-compatible |
 | Text-to-Speech | Google gTTS + Web Speech API | 3.x / browser native |

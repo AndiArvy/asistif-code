@@ -5,7 +5,7 @@ Sistem asisten berbasis AI untuk penyandang tunanetra yang membantu mengoperasik
 ## Fitur Utama
 
 - **Perintah Suara** — Tekan & tahan layar HP, bicara, lepas untuk proses (Whisper STT)
-- **Navigasi Taktil** — Panduan arah jempol ke tombol remote dengan deteksi real-time (YOLO)
+- **Navigasi Taktil** — Panduan arah jempol ke tombol remote dengan deteksi real-time (YOLOv26n OBB)
 - **Deteksi Tombol Otomatis** — Zero-shot object detection (OWL-ViT) + mapping fungsi via VLM
 - **Umpan Balik Suara** — TTS otomatis (gTTS) + Web Speech API offline untuk setiap respon
 - **Navigasi Layar Real-time** — Background monitor mendeteksi sentuhan jempol tanpa perlu bertanya
@@ -20,7 +20,7 @@ Sistem asisten berbasis AI untuk penyandang tunanetra yang membantu mengoperasik
 
 ```
 HP (Kamera + Mic) ←→ WebRTC ←→ Server PC (port 8080)
-                              ├── YOLOv8 (deteksi remote + jempol)
+                               ├── YOLOv26n OBB (deteksi remote + jempol)
                               ├── OWL-ViT (deteksi tombol zero-shot)
                               ├── LM Studio / VLM (reasoning & navigasi)
                               └── Faster-Whisper (speech-to-text)
@@ -30,7 +30,7 @@ HP (Kamera + Mic) ←→ WebRTC ←→ Server PC (port 8080)
 
 - **Python** 3.10+
 - **CUDA** (recommended untuk GPU) atau CPU
-- **LM Studio** (port 1234) dengan model vision
+- **LM Studio** (port 1234) dengan Qwen3.5 9B (vision)
 - **HP Android/iOS** dengan browser modern (Chrome/Safari)
 
 ## Instalasi & Persiapan
@@ -58,8 +58,8 @@ pip install -r requirements.txt
 
 ### 4. Siapkan model AI
 
-- **YOLO** — Letakkan `best.pt` di root project (atau set env `YOLO_MODEL_PATH`)
-- **LM Studio** — Download model vision (contoh: LLaVA, CogVLM), jalankan di port 1234, aktifkan API server
+- **YOLO** — Letakkan `best.pt` (YOLOv26n OBB) di root project (atau set env `YOLO_MODEL_PATH`)
+- **LM Studio** — Download Qwen3.5 9B (`qwen3.5-9b`), jalankan di port 1234, aktifkan API server
 - **OWL-ViT** — Didownload otomatis dari HuggingFace saat pertama kali dijalankan
 
 ## Menjalankan Sistem

@@ -65,17 +65,17 @@ Dokumen ini mencatat keputusan arsitektur utama yang diambil selama pengembangan
 
 ---
 
-## ADR-004: YOLOv8 OBB untuk Deteksi & Rotasi Remote
+## ADR-004: YOLOv26n OBB untuk Deteksi & Rotasi Remote
 
 **Status:** Accepted
 
 **Konteks:** Remote bisa dalam posisi miring di kamera. Deteksi butuh rotasi agar tombol bisa diindeks secara konsisten.
 
-**Keputusan:** YOLOv8 dengan dukungan Oriented Bounding Box (OBB) untuk deteksi + rotasi.
+**Keputusan:** YOLOv26n OBB untuk deteksi + rotasi (model custom, `best.pt`).
 
 **Alasan:**
 - OBB memberikan sudut rotasi langsung dari model
-- YOLOv8 OBB sudah terintegrasi di Ultralytics — tanpa preprocessing tambahan
+- YOLOv26n OBB sudah terintegrasi di Ultralytics — tanpa preprocessing tambahan
 - Lock portrait memastikan orientasi konsisten untuk mapping layout
 - Fallback ke axis-aligned boxes jika OBB tidak tersedia
 
@@ -92,18 +92,18 @@ Dokumen ini mencatat keputusan arsitektur utama yang diambil selama pengembangan
 
 **Konteks:** Perlu model Vision-Language untuk memahami layout remote dan memberikan panduan navigasi. Opsi: cloud API (GPT-4V, Claude), LM Studio lokal, Ollama.
 
-**Keputusan:** LM Studio (API server lokal di port 1234).
+**Keputusan:** LM Studio (API server lokal di port 1234) dengan Qwen3.5 9B.
 
 **Alasan:**
 - Berjalan lokal — privasi, tanpa biaya API
-- Mendukung berbagai model vision (LLaVA, CogVLM, Qwen-VL)
+- Qwen3.5 9B memberikan keseimbangan akurasi-kecepatan untuk vision reasoning
 - API kompatibel dengan OpenAI format — mudah diganti ke cloud jika perlu
 - Bisa dijalankan di PC yang sama dengan server
 
 **Konsekuensi:**
-- Perlu GPU dengan VRAM 8GB+ untuk model vision
-- Kualitas reasoning tergantung model yang digunakan
-- Startup lambat (loading model)
+- Perlu GPU dengan VRAM 8-10GB untuk Qwen3.5 9B
+- Kualitas reasoning tergantung model yang digunakan (Qwen3.5 9B cukup baik)
+- Startup lambat (loading model ~30-60 detik)
 
 ---
 
