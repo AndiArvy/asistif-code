@@ -56,8 +56,8 @@ Server WebRTC (server_vision.py)
 Sistem menggunakan **arsitektur Client-Server** dengan dua entitas utama:
 
 ### Server (PC)
-- **Port 8080** — Server WebRTC utama
-- **Port 1234** — LM Studio (Qwen3.5 9B Vision lokal)
+- **Port 8080**: Server WebRTC utama
+- **Port 1234**: LM Studio (Qwen3.5 9B Vision lokal)
 - Menjalankan: `server_vision.py` + `audio_inference.py`
 - Model AI: YOLOv26n OBB (`best.pt`), OWL-ViT, Faster-Whisper, Qwen3.5 9B (LM Studio)
 
@@ -120,7 +120,7 @@ code2/
 
 ## 4. Deskripsi & Alur Setiap Modul
 
-### 4.1 `server_vision.py` — Server Utama WebRTC
+### 4.1 `server_vision.py`: Server Utama WebRTC
 
 **Tujuan:** Bertindak sebagai jembatan antara HP (WebRTC) dan script AI Python.
 
@@ -130,7 +130,7 @@ code2/
 |-------|----------|--------|-----------|
 | Halaman Utama | `/` | GET | Serve `index.html` |
 | WebRTC Signaling | `/offer` | POST | Terima SDP offer dari HP, buat answer |
-| Video Stream | `/video_feed` | GET | Streaming MJPEG — event-driven via `asyncio.Event()`, bukan polling busy-loop |
+| Video Stream | `/video_feed` | GET | Streaming MJPEG: event-driven via `asyncio.Event()`, bukan polling busy-loop |
 | Audio Stream | `/audio_feed` | WS | WebSocket untuk audio raw ke Python |
 | Snapshot | `/snapshot` | GET | Ambil 1 frame JPEG terbaru |
 | Chat Log | `/send_log` | POST | Terima log dari script AI, kirim ke HP |
@@ -141,13 +141,13 @@ code2/
 | Preload TTS | `/preload_tts` | POST | Pre-generate common TTS phrases |
 
 **Variabel Global:**
-- `latest_jpeg` — Frame video terbaru dari HP (byte JPEG)
-- `frame_event` — `asyncio.Event()` — sinyal frame baru (event-driven, bukan polling)
-- `frontend_clients` — Set koneksi WebSocket ke HP
-- `audio_clients` — Set koneksi WebSocket ke audio_inference.py
-- `pcs` — Set koneksi RTCPeerConnection aktif
-- `command_clients` — Set koneksi WebSocket untuk perintah hold-to-speak
-- `webspeech_clients` — Set koneksi WebSocket yang mendukung Web Speech API
+- `latest_jpeg`: Frame video terbaru dari HP (byte JPEG)
+- `frame_event`: `asyncio.Event()`: sinyal frame baru (event-driven, bukan polling)
+- `frontend_clients`: Set koneksi WebSocket ke HP
+- `audio_clients`: Set koneksi WebSocket ke audio_inference.py
+- `pcs`: Set koneksi RTCPeerConnection aktif
+- `command_clients`: Set koneksi WebSocket untuk perintah hold-to-speak
+- `webspeech_clients`: Set koneksi WebSocket yang mendukung Web Speech API
 
 **Alur WebRTC:**
 1. HP → `/offer` (SDP offer)
@@ -169,27 +169,27 @@ code2/
 
 ---
 
-### 4.2 `index.html` — Frontend HP
+### 4.2 `index.html`: Frontend HP
 
 **Tujuan:** UI berbasis web untuk HP yang menampilkan video, kontrol kamera, log chat, dan memutar TTS.
 
 **Fitur:**
-- **WebRTC** — Streaming video & audio dari HP ke server
-- **Hold-to-Speak** — Tekan & tahan layar untuk bicara, lepas untuk proses:
+- **WebRTC**: Streaming video & audio dari HP ke server
+- **Hold-to-Speak**: Tekan & tahan layar untuk bicara, lepas untuk proses:
   - `touchstart` + `pointerdown` → `startHolding()` → mic ON + kirim `hold_action:start_listening`
   - `touchend` + `pointerup` + `touchcancel` → `stopHolding()` → mic OFF + kirim `hold_action:stop_listening`
   - Safety timeout 30 detik jika pointerup tidak pernah sampai
   - `visibilitychange` → stop mic jika pindah app
   - Haptic feedback (vibrate) saat mulai/berhenti
-- **Web Speech API** — Deteksi browser support → kirim `capability:{tts_mode:"webspeech"}` ke server
+- **Web Speech API**: Deteksi browser support → kirim `capability:{tts_mode:"webspeech"}` ke server
 - **Dual TTS Mode:**
-  - `{type:"speak"}` — TTS offline via Web Speech API (text-only)
-  - `{type:"audio"}` — TTS via gTTS (base64 audio)
-- **Kontrol Senter** — Flashlight toggle via tombol atau perintah suara
-- **Ganti Kamera** — Switch depan/belakang dengan replaceTrack
-- **Log Chat** — Warna: biru (User), hijau (AI), kuning (Sistem)
-- **Mic Control** — Otomatis mute saat TTS berbicara
-- **Scroll Dicegah** — `touch-action:none`, `position:fixed`
+  - `{type:"speak"}`: TTS offline via Web Speech API (text-only)
+  - `{type:"audio"}`: TTS via gTTS (base64 audio)
+- **Kontrol Senter**: Flashlight toggle via tombol atau perintah suara
+- **Ganti Kamera**: Switch depan/belakang dengan replaceTrack
+- **Log Chat**: Warna: biru (User), hijau (AI), kuning (Sistem)
+- **Mic Control**: Otomatis mute saat TTS berbicara
+- **Scroll Dicegah**: `touch-action:none`, `position:fixed`
 
 **Fungsi Penting (JavaScript):**
 | Fungsi | Peran |
@@ -203,7 +203,7 @@ code2/
 
 ---
 
-### 4.3 `audio_inference.py` — Pemrosesan Suara
+### 4.3 `audio_inference.py`: Pemrosesan Suara
 
 **Tujuan:** Menerima audio dari mic HP via WebSocket, melakukan Speech-to-Text dengan Faster-Whisper, lalu memicu VLM reasoning.
 
@@ -248,7 +248,7 @@ touchend (HP)
 
 ---
 
-### 4.4 `vision_reasoning.py` — Logika VLM dan Navigasi
+### 4.4 `vision_reasoning.py`: Logika VLM dan Navigasi
 
 **Tujuan:** Modul paling kompleks. Menangani:
 - Setup layout remote (deteksi → krop → indeks tombol → mapping fungsi)
@@ -351,11 +351,11 @@ Thread daemon terpisah yang berjalan terus-menerus (setiap 0.5 detik):
 #### E. Matching Fungsi (`is_target_matched` + `_match_task_texts`)
 
 Sistem matching cerdas dengan 3 mekanisme:
-1. **Direct match** — sama persis
-2. **Synonym groups** — 19 grup sinonim khusus remote AC:
+1. **Direct match**: sama persis
+2. **Synonym groups**: 19 grup sinonim khusus remote AC:
    - power, suhu naik, suhu turun, fan, mode, swing, turbo, eco, sleep, light, timer on/off/naik/turun, set, cancel, clock
-3. **Timer guard clause** — mencegah false positive timer vs fitur lain
-4. **Index alias** — teks mengandung "b3" → cari fungsi di layout_data
+3. **Timer guard clause**: mencegah false positive timer vs fitur lain
+4. **Index alias**: teks mengandung "b3" → cari fungsi di layout_data
 
 #### F. SYNONYM_GROUPS
 
@@ -377,7 +377,7 @@ Sistem matching cerdas dengan 3 mekanisme:
 
 ---
 
-### 4.5 `rotate_remote.py` — Rotasi Gambar Remote
+### 4.5 `rotate_remote.py`: Rotasi Gambar Remote
 
 **Tujuan:** Mendeteksi dan merotasi gambar remote agar tegak lurus (portrait) menggunakan YOLO OBB (Oriented Bounding Box).
 
@@ -403,7 +403,7 @@ Sistem matching cerdas dengan 3 mekanisme:
 
 ---
 
-### 4.6 `vision_models.py` — Manajemen Model AI
+### 4.6 `vision_models.py`: Manajemen Model AI
 
 **Tujuan:** Lazy-loading singleton thread-safe untuk model-model AI berat.
 
@@ -424,7 +424,7 @@ Sistem matching cerdas dengan 3 mekanisme:
 
 ---
 
-### 4.7 `vision_http.py` — Utilitas HTTP
+### 4.7 `vision_http.py`: Utilitas HTTP
 
 **Tujuan:** Menyediakan fungsi-fungsi HTTP untuk komunikasi antar komponen dengan ThreadPoolExecutor.
 
@@ -436,7 +436,7 @@ Sistem matching cerdas dengan 3 mekanisme:
 | `TTS_TRIGGER_URL` | `8080` | Trigger TTS |
 | `LOG_URL` | `8080` | Kirim log ke frontend |
 
-**ThreadPool:** 4 workers untuk `fire_and_forget_post()` — mencegah thread leak.
+**ThreadPool:** 4 workers untuk `fire_and_forget_post()`: mencegah thread leak.
 
 **Fungsi Utama:**
 | Fungsi | Deskripsi |
@@ -451,7 +451,7 @@ Sistem matching cerdas dengan 3 mekanisme:
 
 ---
 
-### 4.8 `tts_cache.py` — Sistem Cache TTS
+### 4.8 `tts_cache.py`: Sistem Cache TTS
 
 **Tujuan:** Menyimpan file audio TTS secara lokal dengan thread-safe singleton pattern.
 
@@ -478,14 +478,14 @@ tts_cache/
 
 ---
 
-### 4.9 `hybrid_inference.py` — Alternatif Entry Point
+### 4.9 `hybrid_inference.py`: Alternatif Entry Point
 
 **Tujuan:** Entry point alternatif untuk testing tanpa HP (menggunakan input terminal + tap layar).
 
 **Alur:**
-1. `listen_to_tap_commands()` — WebSocket ke `/command_feed` (terima tap)
-2. `manual_input_loop()` — Input dari terminal (asyncio loop.run_in_executor)
-3. `auto_scan_layout()` — Background scan remote (setiap 2 detik)
+1. `listen_to_tap_commands()`: WebSocket ke `/command_feed` (terima tap)
+2. `manual_input_loop()`: Input dari terminal (asyncio loop.run_in_executor)
+3. `auto_scan_layout()`: Background scan remote (setiap 2 detik)
 4. Ketiga fungsi berjalan parallel via `asyncio.gather()`
 
 **Cocok untuk:** Debugging, testing tanpa HP, atau situasi di mana mic tidak tersedia.
@@ -743,12 +743,12 @@ USER MINTA RESET
 
 ```
 Main Thread (asyncio event loop):
-├── server_vision.py — aiohttp server
+├── server_vision.py: aiohttp server
 │   ├── WebRTC signaling & streaming
 │   ├── HTTP endpoints (/snapshot, /trigger_tts, dll.)
 │   └── WebSocket endpoints (/frontend_ws, /audio_feed, /command_feed)
 │
-└── audio_inference.py — 3 async loops via asyncio.gather()
+└── audio_inference.py: 3 async loops via asyncio.gather()
     ├── listen_to_mic()         → WebSocket audio → Whisper STT
     ├── listen_to_commands()    → WebSocket command → VLM trigger
     └── auto_scan_layout()      → periodic YOLO scan (tiap 3 detik)
@@ -759,7 +759,7 @@ Background Thread (daemon):
 
 ThreadPool (vision_http.py):
 └── ThreadPoolExecutor(max_workers=4)
-    └── fire_and_forget_post() — HTTP non-blocking untuk TTS, log, dll.
+    └── fire_and_forget_post(): HTTP non-blocking untuk TTS, log, dll.
 
 Thread Safety:
 - vision_processing_lock (threading.Lock) → protect model inference

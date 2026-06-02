@@ -6,10 +6,10 @@ Panduan ini untuk pengguna tunanetra yang akan menggunakan sistem asisten remote
 
 ## Apa yang Anda Butuhkan
 
-1. **HP Android/iOS** — dengan kamera belakang dan koneksi Wi-Fi
-2. **PC** — yang sudah diatur oleh pendamping Anda
-3. **Remote AC** — yang ingin dioperasikan
-4. **Koneksi Wi-Fi** — HP dan PC harus di jaringan yang sama
+1. **HP Android/iOS**: dengan kamera belakang dan koneksi Wi-Fi
+2. **PC**: yang sudah diatur oleh pendamping Anda
+3. **Remote AC**: yang ingin dioperasikan
+4. **Koneksi Wi-Fi**: HP dan PC harus di jaringan yang sama
 
 ---
 
@@ -27,8 +27,8 @@ Minta pendamping Anda untuk:
 1. Buka browser Chrome atau Safari di HP Anda
 2. Ketik alamat yang diberikan pendamping di kolom URL
 3. Saat diminta izin:
-   - **Izinkan akses kamera** — "Ya" atau "Allow"
-   - **Izinkan akses mikrofon** — "Ya" atau "Allow"
+   - **Izinkan akses kamera**: "Ya" atau "Allow"
+   - **Izinkan akses mikrofon**: "Ya" atau "Allow"
 4. Jika berhasil, Anda akan mendengar suara:
    > "Letakkan remote di depan kamera untuk pemetaan layout."
 
@@ -38,7 +38,7 @@ Minta pendamping Anda untuk:
 
 1. Arahkan kamera HP ke remote AC
 2. Pastikan remote terlihat jelas di kamera
-3. Tunggu sistem memproses — akan ada suara:
+3. Tunggu sistem memproses: akan ada suara:
    > "Remote terlihat. Tahan posisi Anda sebentar..."
    > "Memetakan tombol remote, tunggu sampai berhasil..."
    > "Pemetaan remote berhasil. Mau saya bantu apa?"
@@ -64,7 +64,7 @@ Setelah ini, sistem siap digunakan.
 
 **Tips:**
 - Bicara dengan jelas dan tidak terlalu cepat
-- Tidak perlu berteriak — volume normal sudah cukup
+- Tidak perlu berteriak: volume normal sudah cukup
 - Jika sistem sibuk, tunggu sampai selesai bicara sebelum perintah baru
 - HP akan bergetar saat Anda mulai/tidak lagi mendengarkan
 
@@ -120,8 +120,8 @@ Setelah jempol di tombol yang benar, tekan tombol fisik pada remote AC.
 ## Tombol di Layar HP
 
 Selain perintah suara, ada tombol di layar:
-- **Ganti Kamera** — Switch depan/belakang
-- **Flashlight** — Nyalakan/matikan senter HP
+- **Ganti Kamera**: Switch depan/belakang
+- **Flashlight**: Nyalakan/matikan senter HP
 
 ---
 

@@ -13,14 +13,14 @@ Dokumen ini mencatat keputusan arsitektur utama yang diambil selama pengembangan
 **Keputusan:** Menggunakan WebRTC (`aiortc` + browser native `RTCPeerConnection`).
 
 **Alasan:**
-- Native di browser — tidak perlu install app tambahan di HP
-- Adaptive bitrate — otomatis menyesuaikan kualitas dengan koneksi
+- Native di browser: tidak perlu install app tambahan di HP
+- Adaptive bitrate: otomatis menyesuaikan kualitas dengan koneksi
 - Dukungan audio-video sinkron dalam satu koneksi
 - Firewall-friendly (menggunakan port 8080 yang sama dengan HTTP)
 
 **Konsekuensi:**
 - Kompleksitas signaling (SDP offer/answer)
-- Bergantung pada browser — fitur torch tidak konsisten antar browser
+- Bergantung pada browser: fitur torch tidak konsisten antar browser
 - Perlu `av` library untuk resample audio
 
 ---
@@ -35,7 +35,7 @@ Dokumen ini mencatat keputusan arsitektur utama yang diambil selama pengembangan
 
 **Alasan:**
 - 4-6x lebih cepat dari OpenAI Whisper (CTranslate2 optimization)
-- Berjalan lokal — tidak perlu internet, privasi terjaga
+- Berjalan lokal: tidak perlu internet, privasi terjaga
 - Model turbo memberikan keseimbangan akurasi-kecepatan
 - Dukungan bahasa Indonesia yang baik
 
@@ -54,7 +54,7 @@ Dokumen ini mencatat keputusan arsitektur utama yang diambil selama pengembangan
 **Keputusan:** OWL-ViT (`google/owlv2-base-patch16-ensemble`) untuk deteksi tombol tanpa training.
 
 **Alasan:**
-- Zero-shot — tidak perlu dataset tombol remote
+- Zero-shot: tidak perlu dataset tombol remote
 - Generalisasi ke remote manapun tanpa retraining
 - Akurasi cukup baik untuk tombol dengan text query yang tepat
 
@@ -75,7 +75,7 @@ Dokumen ini mencatat keputusan arsitektur utama yang diambil selama pengembangan
 
 **Alasan:**
 - OBB memberikan sudut rotasi langsung dari model
-- YOLOv26n OBB sudah terintegrasi di Ultralytics — tanpa preprocessing tambahan
+- YOLOv26n OBB sudah terintegrasi di Ultralytics: tanpa preprocessing tambahan
 - Lock portrait memastikan orientasi konsisten untuk mapping layout
 - Fallback ke axis-aligned boxes jika OBB tidak tersedia
 
@@ -95,9 +95,9 @@ Dokumen ini mencatat keputusan arsitektur utama yang diambil selama pengembangan
 **Keputusan:** LM Studio (API server lokal di port 1234) dengan Qwen3.5 9B.
 
 **Alasan:**
-- Berjalan lokal — privasi, tanpa biaya API
+- Berjalan lokal: privasi, tanpa biaya API
 - Qwen3.5 9B memberikan keseimbangan akurasi-kecepatan untuk vision reasoning
-- API kompatibel dengan OpenAI format — mudah diganti ke cloud jika perlu
+- API kompatibel dengan OpenAI format: mudah diganti ke cloud jika perlu
 - Bisa dijalankan di PC yang sama dengan server
 
 **Konsekuensi:**
@@ -134,7 +134,7 @@ Dokumen ini mencatat keputusan arsitektur utama yang diambil selama pengembangan
 
 **Konteks:** Sistem perlu tahu kapan user mulai dan selesai bicara. Opsi: voice activity detection (VAD) kontinu, push-to-talk / hold-to-speak.
 
-**Keputusan:** Hold-to-speak — user menekan & menahan layar untuk bicara, melepas untuk proses.
+**Keputusan:** Hold-to-speak: user menekan & menahan layar untuk bicara, melepas untuk proses.
 
 **Alasan:**
 - Menghindari false positive dari percakapan di sekitar
@@ -144,7 +144,7 @@ Dokumen ini mencatat keputusan arsitektur utama yang diambil selama pengembangan
 - Safety timeout 30 detik jika pointerup tidak pernah sampai
 
 **Konsekuensi:**
-- User harus selalu menyentuh layar — tidak bisa hands-free
+- User harus selalu menyentuh layar: tidak bisa hands-free
 - Perlu penanganan event touch + pointer untuk kompatibilitas browser
 - Perlu drain time 0.4s setelah touchend untuk menangkap sisa audio
 
@@ -159,13 +159,13 @@ Dokumen ini mencatat keputusan arsitektur utama yang diambil selama pengembangan
 **Keputusan:** Thread daemon terpisah (`background_task_monitor_loop`) yang mengecek posisi jempol setiap 500ms.
 
 **Alasan:**
-- Mengurangi jumlah interaksi — user tidak perlu bertanya "apakah ini tombol yang benar?"
-- Real-time — konfirmasi otomatis saat jempol menyentuh target
+- Mengurangi jumlah interaksi: user tidak perlu bertanya "apakah ini tombol yang benar?"
+- Real-time: konfirmasi otomatis saat jempol menyentuh target
 - Thread terpisah agar tidak memblokir pipeline utama
 - Snapshot task & intent untuk mencegah race condition
 
 **Konsekuensi:**
-- Thread concurrency — perlu `vision_processing_lock`
+- Thread concurrency: perlu `vision_processing_lock`
 - Konsumsi CPU tambahan (setiap 500ms YOLO inference small crop)
 - False positive jika jempol melewati tombol target
 
@@ -181,7 +181,7 @@ Dokumen ini mencatat keputusan arsitektur utama yang diambil selama pengembangan
 
 **Alasan:**
 - User tidak perlu mengucapkan "setup layout" secara manual
-- Deteksi dini — sistem langsung memproses saat remote masuk frame
+- Deteksi dini: sistem langsung memproses saat remote masuk frame
 - Stabilisasi 1.5 detik mencegah blur/autofocus
 - Validasi ukuran (>60000 px) dan margin (50px) cegah false positive
 
@@ -200,13 +200,13 @@ Dokumen ini mencatat keputusan arsitektur utama yang diambil selama pengembangan
 **Keputusan:** Semua service dalam satu proses Python (`server_vision.py`) di port 8080.
 
 **Alasan:**
-- Sederhana — tidak perlu orkestrasi multi-service
+- Sederhana: tidak perlu orkestrasi multi-service
 - Semua data (video, audio, log, TTS) lewat satu koneksi
 - Mudah di-deploy dan di-debug
 - Cocok untuk penggunaan personal/single-user
 
 **Konsekuensi:**
-- Tidak ada isolasi — crash satu komponen menghentikan semua
+- Tidak ada isolasi: crash satu komponen menghentikan semua
 - Kurang cocok untuk multi-user
 - Tidak scalable horizontal
 
@@ -221,7 +221,7 @@ Dokumen ini mencatat keputusan arsitektur utama yang diambil selama pengembangan
 **Keputusan:** Hold-to-speak dengan audio buffer (`hold_audio_buffer`) yang dikumpulkan saat `hold_to_speak_active=True` atau `draining=True`.
 
 **Alasan:**
-- Segmentasi audio sempurna — mulai dan akhir ditentukan user
+- Segmentasi audio sempurna: mulai dan akhir ditentukan user
 - `draining` flag 0.4s menangkap audio setelah touchend
 - Filter buffer < 2048 bytes untuk mencegah false positive
 - `system_is_busy` flag mencegah tumpang tindih pemrosesan
@@ -246,7 +246,7 @@ Dokumen ini mencatat keputusan arsitektur utama yang diambil selama pengembangan
 - Mengurangi beban GPU
 - Pattern matching cukup akurat untuk perintah sederhana
 
-**Perkembangan Terbaru (ADR-012b):** ACTION_INTENTS ditambahkan — 11 grup regex untuk perintah AC umum (power, suhu naik/turun, mode, fan, swing, turbo, eco, sleep, timer on/off). Jika tombol ditemukan di layout, sistem memberikan panduan arah langsung; jika tidak, fallback ke VLM.
+**Perkembangan Terbaru (ADR-012b):** ACTION_INTENTS ditambahkan: 11 grup regex untuk perintah AC umum (power, suhu naik/turun, mode, fan, swing, turbo, eco, sleep, timer on/off). Jika tombol ditemukan di layout, sistem memberikan panduan arah langsung; jika tidak, fallback ke VLM.
 
 **Konsekuensi:**
 - Perlu maintenance SYNONYM_GROUPS untuk akurasi matching

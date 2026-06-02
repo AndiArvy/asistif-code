@@ -43,7 +43,7 @@ Menerima SDP offer dari browser HP dan mengembalikan SDP answer.
 
 Menyajikan halaman frontend `index.html`.
 
-**Response:** `text/html` — Halaman UI HP dengan WebRTC client, hold-to-speak, log chat, dan kontrol kamera.
+**Response:** `text/html`: Halaman UI HP dengan WebRTC client, hold-to-speak, log chat, dan kontrol kamera.
 
 ---
 
@@ -52,8 +52,8 @@ Menyajikan halaman frontend `index.html`.
 Mengembalikan 1 frame JPEG terbaru dari video stream HP.
 
 **Response:**
-- `200 OK` — `image/jpeg` (frame terbaru)
-- `404 Not Found` — Kamera belum siap
+- `200 OK`: `image/jpeg` (frame terbaru)
+- `404 Not Found`: Kamera belum siap
 
 ---
 
@@ -63,7 +63,7 @@ Streaming MJPEG (multipart/x-mixed-replace) dari video HP.
 
 **Response:** `multipart/x-mixed-replace;boundary=frame-boundary`
 
-Menggunakan event-driven `asyncio.Event()` — tidak melakukan polling busy-loop.
+Menggunakan event-driven `asyncio.Event()`: tidak melakukan polling busy-loop.
 
 ---
 
@@ -80,12 +80,12 @@ Generate dan kirim TTS via gTTS ke semua frontend clients.
 }
 ```
 
-**Response:** `text/plain` — "Suara berhasil dikirim ke HP" atau error.
+**Response:** `text/plain`: "Suara berhasil dikirim ke HP" atau error.
 
 **Alur:**
 1. Jika ada client Web Speech → kirim teks via Web Speech API (skip gTTS)
 2. Cek cache TTS jika `use_cache=true` dan `cache_file` disediakan
-3. Path traversal dicegah — file harus di dalam `cache_dir`
+3. Path traversal dicegah: file harus di dalam `cache_dir`
 4. Jika tidak ada cache → generate via gTTS
 5. Simpan ke cache lokal
 6. Kirim `{type:"audio", audio:base64, text, playback_rate}` ke semua frontend WebSocket
@@ -106,9 +106,9 @@ Kirim teks TTS via Web Speech API langsung ke browser HP. Zero server load, offl
 ```
 
 **Response:**
-- `200 OK` — "Suara berhasil dikirim via Web Speech (offline)"
-- `200 OK` — "Suara berhasil dikirim via gTTS (fallback)"
-- `503` — "Tidak ada client yang terhubung untuk TTS"
+- `200 OK`: "Suara berhasil dikirim via Web Speech (offline)"
+- `200 OK`: "Suara berhasil dikirim via gTTS (fallback)"
+- `503`: "Tidak ada client yang terhubung untuk TTS"
 
 **Alur:**
 1. Jika ada client Web Speech → kirim `{type:"speak", text, lang}` via WebSocket
@@ -129,7 +129,7 @@ Menerima log dari script Python dan meneruskannya ke frontend HP.
 }
 ```
 
-**Response:** `text/plain` — "Log terkirim ke HP"
+**Response:** `text/plain`: "Log terkirim ke HP"
 
 **Broadcast:** Pesan dikirim ke semua koneksi `/frontend_ws` sebagai `{type:"log", sender, text}`.
 
@@ -141,9 +141,9 @@ Menerima log dari script Python dan meneruskannya ke frontend HP.
 
 Memicu pre-generation semua frasa TTS umum (digunakan saat startup).
 
-**Response:** `text/plain` — "TTS preload completed"
+**Response:** `text/plain`: "TTS preload completed"
 
-**Endpoint internal** — biasanya dipanggil otomatis saat startup, bisa dipanggil manual untuk reload cache.
+**Endpoint internal**: biasanya dipanggil otomatis saat startup, bisa dipanggil manual untuk reload cache.
 
 ---
 
@@ -186,7 +186,7 @@ Pesan `hold_action` dari HP diteruskan ke `/command_feed` untuk diproses oleh `a
 
 Menerima audio dari server dan mengirimkannya ke client Python (audio_inference.py).
 
-**Data:** Binary raw audio — 16-bit signed integer, mono, 16kHz.
+**Data:** Binary raw audio: 16-bit signed integer, mono, 16kHz.
 
 **Alur:**
 1. `server_vision.py` menerima audio track dari HP via WebRTC
@@ -244,8 +244,8 @@ Sistem menggunakan LM Studio sebagai VLM backend di port `1234`. API kompatibel 
 ```
 
 **Dua tipe request VLM:**
-1. **Mapping layout** (`map_functions_with_vlm`) — 2 gambar (clean + indexed) → output JSON mapping b1..bN ke fungsi
-2. **VLM Reasoning** (`process_vlm_reasoning`) — 1 gambar (current crop + overlay bbox + thumb marker) + user text → output JSON intent + instruksi
+1. **Mapping layout** (`map_functions_with_vlm`): 2 gambar (clean + indexed) → output JSON mapping b1..bN ke fungsi
+2. **VLM Reasoning** (`process_vlm_reasoning`): 1 gambar (current crop + overlay bbox + thumb marker) + user text → output JSON intent + instruksi
 
 ---
 

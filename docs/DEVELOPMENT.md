@@ -85,30 +85,30 @@ Set `VISION_DEBUG=true` untuk menyimpan debug images di root folder.
 
 ### Pipeline Utama
 
-1. **WebRTC Handshake** — HP → `/offer` (SDP) → server buat `RTCPeerConnection` → return SDP answer
-2. **Video Streaming** — HP → WebRTC video track → `latest_jpeg` (global) + `frame_event` (asyncio.Event)
-3. **Audio Streaming** — HP → WebRTC audio track → `AudioResampler` (s16, mono, 16kHz) → `/audio_feed` (WebSocket broadcast)
-4. **Hold-to-Speak** — HP touchstart → `hold_action:start_listening` → `audio_inference.py` mulai buffer → touchend → `hold_action:stop_listening` → drain 0.4s → Whisper STT
-5. **VLM Reasoning** — hasil STT → `process_vlm_reasoning()`:
+1. **WebRTC Handshake**: HP → `/offer` (SDP) → server buat `RTCPeerConnection` → return SDP answer
+2. **Video Streaming**: HP → WebRTC video track → `latest_jpeg` (global) + `frame_event` (asyncio.Event)
+3. **Audio Streaming**: HP → WebRTC audio track → `AudioResampler` (s16, mono, 16kHz) → `/audio_feed` (WebSocket broadcast)
+4. **Hold-to-Speak**: HP touchstart → `hold_action:start_listening` → `audio_inference.py` mulai buffer → touchend → `hold_action:stop_listening` → drain 0.4s → Whisper STT
+5. **VLM Reasoning**: hasil STT → `process_vlm_reasoning()`:
    - Hardcode tanpa VLM: senter, reset layout, "apa tombol ini?", konfirmasi, "dimana tombol X?", ACTION_INTENTS (nyalakan AC, atur suhu, ganti mode, dll)
    - Jika perlu VLM: ambil snapshot → deteksi thumb → kirim 1 gambar ke LM Studio → parse response → TTS
-6. **Background Monitor** — Thread daemon terpisah, setiap 500ms cek thumb position, auto-confirm jika menyentuh target
+6. **Background Monitor**: Thread daemon terpisah, setiap 500ms cek thumb position, auto-confirm jika menyentuh target
 
 ### Threading Model
 
 ```
 Main Thread (asyncio):
-├── server_vision.py — aiohttp server (WebRTC, HTTP, WebSocket)
-└── audio_inference.py — asyncio.gather
+├── server_vision.py: aiohttp server (WebRTC, HTTP, WebSocket)
+└── audio_inference.py: asyncio.gather
     ├── listen_to_mic()         → WebSocket audio → Whisper STT
     ├── listen_to_commands()    → WebSocket command → trigger VLM
     └── auto_scan_layout()      → periodic YOLO scan (tiap 3 detik)
 
 Background Thread (daemon):
-└── background_task_monitor_loop() — 500ms thumb detection + auto-confirm
+└── background_task_monitor_loop(): 500ms thumb detection + auto-confirm
 
 ThreadPool (vision_http.py 4 workers):
-└── fire_and_forget_post() — HTTP non-blocking
+└── fire_and_forget_post(): HTTP non-blocking
 ```
 
 ### Hold-to-Speak vs VAD
@@ -116,7 +116,7 @@ ThreadPool (vision_http.py 4 workers):
 Sistem menggunakan **Hold-to-Speak** (push-to-talk), bukan continuous VAD:
 
 1. **touchstart** (HP) → server kirim `hold_action:start_listening` → audio_inference set `hold_to_speak_active = True`
-2. User bicara — audio di-buffer di `hold_audio_buffer`
+2. User bicara: audio di-buffer di `hold_audio_buffer`
 3. **touchend** (HP) → server kirim `hold_action:stop_listening` → `hold_to_speak_active = False`, `draining = True`
 4. Tunggu 0.4s drain → `draining = False`
 5. `process_buffered_audio()` → Whisper → filter noise/halusinasi → VLM
@@ -129,20 +129,20 @@ Keuntungan: Tidak ada false positive dari percakapan sekitar, segmentasi audio j
 
 ### Python
 
-- **Type hints** — Wajib untuk fungsi baru (`def foo(x: int) -> str:`)
-- **Imports** — Group: standard library, third-party, local (alphabetical)
-- **Global state** — Minimalkan. Jika terpaksa, gunakan uppercase + type hints
-- **Error handling** — Jangan `except: pass`. Log error dengan `print(f"[Module] Error: {e}")`
-- **Async patterns** — Gunakan `asyncio.create_task()` (bukan `ensure_future`)
-- **Threading** — Gunakan `threading.Lock()` untuk shared resource, ThreadPoolExecutor untuk HTTP
+- **Type hints**: Wajib untuk fungsi baru (`def foo(x: int) -> str:`)
+- **Imports**: Group: standard library, third-party, local (alphabetical)
+- **Global state**: Minimalkan. Jika terpaksa, gunakan uppercase + type hints
+- **Error handling**: Jangan `except: pass`. Log error dengan `print(f"[Module] Error: {e}")`
+- **Async patterns**: Gunakan `asyncio.create_task()` (bukan `ensure_future`)
+- **Threading**: Gunakan `threading.Lock()` untuk shared resource, ThreadPoolExecutor untuk HTTP
 
 ### JavaScript (index.html)
 
 - **var** → gunakan `let` / `const`
-- **Event listeners** — `passive: false` untuk touch events
-- **WebSocket** — Handle `onmessage` dengan switch/case berdasarkan `data.type`
-- **Error handling** — Setiap `await` / Promise harus punya `.catch()`
-- **Haptic** — `navigator.vibrate()` untuk feedback sentuhan
+- **Event listeners**: `passive: false` untuk touch events
+- **WebSocket**: Handle `onmessage` dengan switch/case berdasarkan `data.type`
+- **Error handling**: Setiap `await` / Promise harus punya `.catch()`
+- **Haptic**: `navigator.vibrate()` untuk feedback sentuhan
 
 ---
 
@@ -184,11 +184,11 @@ MAX_CONVERSATION_HISTORY=20
 
 Saat ini belum ada test suite formal. Panduan testing manual:
 
-1. **Test WebRTC** — Buka `index.html` via browser, cek koneksi, cek `latest_jpeg` diupdate
-2. **Test STT** — Jalankan `audio_inference.py`, hold-to-speak via HP, cek output teks
-3. **Test Layout** — Letakkan remote di kamera, cek `layout.json` terbentuk
-4. **Test VLM** — Jalankan `hybrid_inference.py`, ketik perintah, cek response TTS
-5. **Test Background Monitor** — Setelah navigasi aktif, geser jempol ke tombol target, cek auto-confirm
+1. **Test WebRTC**: Buka `index.html` via browser, cek koneksi, cek `latest_jpeg` diupdate
+2. **Test STT**: Jalankan `audio_inference.py`, hold-to-speak via HP, cek output teks
+3. **Test Layout**: Letakkan remote di kamera, cek `layout.json` terbentuk
+4. **Test VLM**: Jalankan `hybrid_inference.py`, ketik perintah, cek response TTS
+5. **Test Background Monitor**: Setelah navigasi aktif, geser jempol ke tombol target, cek auto-confirm
 
 Untuk menambahkan test formal:
 - Gunakan `pytest` untuk unit test Python
@@ -203,11 +203,11 @@ VISION_DEBUG=true    # Simpan debug images ke root (default: true)
 ```
 
 ### Debug images yang dihasilkan:
-- `debug_frame.jpg` — Frame mentah dari kamera
-- `debug_cropped.jpg` — Crop remote setelah YOLO rotation
-- `debug_current_guided.jpg` — Crop remote + overlay tombol + jempol
-- `debug_clean_reference.jpg` — Referensi layout bersih
-- `debug_indexed_reference.jpg` — Referensi layout dengan indeks b1..bN
+- `debug_frame.jpg`: Frame mentah dari kamera
+- `debug_cropped.jpg`: Crop remote setelah YOLO rotation
+- `debug_current_guided.jpg`: Crop remote + overlay tombol + jempol
+- `debug_clean_reference.jpg`: Referensi layout bersih
+- `debug_indexed_reference.jpg`: Referensi layout dengan indeks b1..bN
 
 ### Tips debugging:
 - Cek `layout.json` untuk melihat hasil mapping tombol
@@ -245,7 +245,7 @@ VISION_DEBUG=true    # Simpan debug images ke root (default: true)
 
 ### Coding Standards
 
-- Python: Ikuti PEP 8 — gunakan `black` untuk formatting, `ruff` untuk linting
+- Python: Ikuti PEP 8: gunakan `black` untuk formatting, `ruff` untuk linting
 - JavaScript: Ikuti standard ES2020
 - HTML: Valid HTML5, semantic elements
 - Commit messages: Indonesian atau English, prefixed dengan `[module]` jika relevan

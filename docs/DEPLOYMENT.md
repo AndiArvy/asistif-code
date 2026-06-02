@@ -163,7 +163,7 @@ sudo systemctl start remote-ac-assistive@audio_inference
 - Faster-Whisper ~2-3 GB VRAM
 - LM Studio (Qwen3.5 9B) ~8-10 GB VRAM
 
-**Total: ~14-18 GB VRAM** — pastikan GPU 16GB+ mencukupi.
+**Total: ~14-18 GB VRAM**: pastikan GPU 16GB+ mencukupi.
 
 Tips:
 - Set `WHISPER_COMPUTE_TYPE=int8` untuk mengurangi VRAM Whisper
@@ -201,11 +201,11 @@ Tips:
 - Pastikan browser mendukung pointer events
 - Coba sentuh layar di area bukan tombol
 - Cek console server untuk log `[Hold] MULAI mendengarkan...`
-- Safety timeout 30 detik — jika tidak, coba reload halaman
+- Safety timeout 30 detik: jika tidak, coba reload halaman
 
 ### Layout Setup Fails Repeatedly
 - Pastikan remote dalam fokus dan tidak blur
-- Cek pencahayaan — minimal cahaya ruangan cukup
+- Cek pencahayaan: minimal cahaya ruangan cukup
 - Coba dekatkan remote ke kamera (min 40% frame)
 - Cek `debug_frame.jpg` dan `debug_cropped.jpg` untuk debugging
 
@@ -221,14 +221,14 @@ Tips:
 
 Sistem menyediakan:
 
-1. **Console logs** — semua service mencetak log ke stdout
-2. **Debug images** — disimpan ke root folder (jika `VISION_DEBUG=true`):
-   - `debug_frame.jpg` — frame mentah
-   - `debug_cropped.jpg` — crop remote
-   - `debug_current_guided.jpg` — overlay tombol + jempol
-   - `debug_*_reference.jpg` — reference layout images
-3. **TTSCache** — `tts_cache/cache_index.json` untuk audit TTS
-4. **Layout JSON** — `layout.json` untuk hasil mapping tombol
+1. **Console logs**: semua service mencetak log ke stdout
+2. **Debug images**: disimpan ke root folder (jika `VISION_DEBUG=true`):
+   - `debug_frame.jpg`: frame mentah
+   - `debug_cropped.jpg`: crop remote
+   - `debug_current_guided.jpg`: overlay tombol + jempol
+   - `debug_*_reference.jpg`: reference layout images
+3. **TTSCache**: `tts_cache/cache_index.json` untuk audit TTS
+4. **Layout JSON**: `layout.json` untuk hasil mapping tombol
 
 Untuk logging production, redirect stdout:
 ```bash
@@ -242,7 +242,7 @@ python src/audio_inference.py > logs/audio.log 2>&1
 
 **Peringatan:** Sistem ini didesain untuk penggunaan personal di jaringan lokal.
 
-- **Bind ke LAN saja** — Set `SERVER_HOST=192.168.1.10` (IP lokal) untuk mencegah akses dari jaringan luar
-- **Path traversal** — Endpoint `/trigger_tts` sudah memiliki validasi path traversal
-- **LM Studio** — API lokal, tidak terekspos ke network
-- **Tidak ada autentikasi** — Cocok untuk lingkungan terpercaya. Untuk akses publik, tambahkan reverse proxy (nginx) dengan autentikasi
+- **Bind ke LAN saja**: Set `SERVER_HOST=192.168.1.10` (IP lokal) untuk mencegah akses dari jaringan luar
+- **Path traversal**: Endpoint `/trigger_tts` sudah memiliki validasi path traversal
+- **LM Studio**: API lokal, tidak terekspos ke network
+- **Tidak ada autentikasi**: Cocok untuk lingkungan terpercaya. Untuk akses publik, tambahkan reverse proxy (nginx) dengan autentikasi

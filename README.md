@@ -4,17 +4,17 @@ Sistem asisten berbasis AI untuk penyandang tunanetra yang membantu mengoperasik
 
 ## Fitur Utama
 
-- **Perintah Suara** — Tekan & tahan layar HP, bicara, lepas untuk proses (Whisper STT)
-- **Navigasi Taktil** — Panduan arah jempol ke tombol remote dengan deteksi real-time (YOLOv26n OBB)
-- **Deteksi Tombol Otomatis** — Zero-shot object detection (OWL-ViT) + mapping fungsi via VLM
-- **Umpan Balik Suara** — TTS otomatis (gTTS) + Web Speech API offline untuk setiap respon
-- **Navigasi Layar Real-time** — Background monitor mendeteksi sentuhan jempol tanpa perlu bertanya
-- **Auto-Confirm** — Sistem otomatis konfirmasi saat jempol menyentuh tombol target
-- **Kontrol Senter** — Perintah suara "senter" untuk menyalakan/mematikan lampu HP
-- **Perintah Cepat AC** — Hardcode intent "nyalakan AC", "atur suhu", "ganti mode", dll tanpa VLM
-- **Haptic Vibration** — Feedback getaran saat mic aktif/mati dan konfirmasi tombol benar
-- **Beep Sound** — Suara sintetis naik/turun saat mic start/stop via Web Audio API
-- **Mode Hybrid** — Input terminal untuk testing tanpa HP
+- **Perintah Suara**: Tekan & tahan layar HP, bicara, lepas untuk proses (Whisper STT)
+- **Navigasi Taktil**: Panduan arah jempol ke tombol remote dengan deteksi real-time (YOLOv26n OBB)
+- **Deteksi Tombol Otomatis**: Zero-shot object detection (OWL-ViT) + mapping fungsi via VLM
+- **Umpan Balik Suara**: TTS otomatis (gTTS) + Web Speech API offline untuk setiap respon
+- **Navigasi Layar Real-time**: Background monitor mendeteksi sentuhan jempol tanpa perlu bertanya
+- **Auto-Confirm**: Sistem otomatis konfirmasi saat jempol menyentuh tombol target
+- **Kontrol Senter**: Perintah suara "senter" untuk menyalakan/mematikan lampu HP
+- **Perintah Cepat AC**: Hardcode intent "nyalakan AC", "atur suhu", "ganti mode", dll tanpa VLM
+- **Haptic Vibration**: Feedback getaran saat mic aktif/mati dan konfirmasi tombol benar
+- **Beep Sound**: Suara sintetis naik/turun saat mic start/stop via Web Audio API
+- **Mode Hybrid**: Input terminal untuk testing tanpa HP
 
 ## Arsitektur Singkat
 
@@ -58,9 +58,9 @@ pip install -r requirements.txt
 
 ### 4. Siapkan model AI
 
-- **YOLO** — Letakkan `best.pt` (YOLOv26n OBB) di root project (atau set env `YOLO_MODEL_PATH`)
-- **LM Studio** — Download Qwen3.5 9B (`qwen3.5-9b`), jalankan di port 1234, aktifkan API server
-- **OWL-ViT** — Didownload otomatis dari HuggingFace saat pertama kali dijalankan
+- **YOLO**: Letakkan `best.pt` (YOLOv26n OBB) di root project (atau set env `YOLO_MODEL_PATH`)
+- **LM Studio**: Download Qwen3.5 9B (`qwen3.5-9b`), jalankan di port 1234, aktifkan API server
+- **OWL-ViT**: Didownload otomatis dari HuggingFace saat pertama kali dijalankan
 
 ## Menjalankan Sistem
 
