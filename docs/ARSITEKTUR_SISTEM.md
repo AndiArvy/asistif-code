@@ -319,8 +319,13 @@ process_vlm_reasoning(user_text)
   │      → Pass 2: synonym match
   │      → Pass 3: jika ada task aktif, cari task context
   │      → Jika ditemukan: speak lokasi, set active task [tanpa VLM]
-  ├── 6. Jika hardcode gagal + ada task aktif → inject petunjuk ke user_text
-  ├── 7. Kirim prompt ke LM Studio:
+  ├── 6. Deteksi ACTION_INTENTS "nyalakan/atur suhu/ganti mode/dll" (regex):
+  │      → Iterasi ACTION_INTENTS: cocokkan pola → target function
+  │      → Cari target function di layout via _match_task_texts()
+  │      → Jika ditemukan: speak lokasi, set active_task_context, return
+  │      → Jika tidak ditemukan: break → fallback ke VLM
+  ├── 7. Jika hardcode gagal + ada task aktif → inject petunjuk ke user_text
+  ├── 8. Kirim prompt ke LM Studio:
   │      - 1 image: current remote crop (overlay bbox + thumb red dot)
   │      - Available Functions + Previous Task + Current Thumb
   │      - System prompt → 10 aturan (SINGLE IMAGE, LCD reading, dll.)
@@ -524,21 +529,23 @@ AUTO LAYOUT DETECTION
         │     └── Tidak → tunggu 3 detik lagi
         └── is_layout_ready = True
 
-USER HOLDS TO SPEAK (Contoh: "Cari tombol power")
-  ├── 1. HP touchstart → hold_action:start_listening → audio buffer ON
-  ├── 2. User bicara "cari tombol power"
-  ├── 3. HP touchend → hold_action:stop_listening → buffer OFF
+USER HOLDS TO SPEAK (Contoh: "Nyalakan AC")
+  ├── 1. HP touchstart → vibrate 100ms + beep 400→800Hz → hold_action:start_listening → audio buffer ON
+  ├── 2. User bicara "nyalakan AC"
+  ├── 3. HP touchend → vibrate [30,30,30] + beep 600→300Hz → hold_action:stop_listening → buffer OFF
   ├── 4. audio_inference.py:
   │      ├── Tunggu 0.4s drain
-  │      ├── Whisper STT → "cari tombol power"
+  │      ├── Whisper STT → "nyalakan AC"
   │      └── Filter noise & halusinasi → valid
   ├── 5. system_is_busy = True
-  ├── 6. process_vlm_reasoning("cari tombol power"):
+  ├── 6. process_vlm_reasoning("nyalakan AC"):
   │      ├── Cek "senter" / "reset layout" → handle tanpa VLM
   │      ├── Cek "apa tombol ini?" → handle tanpa VLM
   │      ├── Cek konfirmasi → handle tanpa VLM
   │      ├── Cek "dimana tombol" → hardcode lookup (3 pass)
-  │      ├── detect_current_thumb_touch() → deteksi jempol
+  │      ├── Cek ACTION_INTENTS → regex match "nyalakan AC" → target="power"
+  │      │     └── Cari "power" di layout_data → ketemu → speak lokasi + set task + return
+  │      ├── (Jika tombol tidak ada di layout) detect_current_thumb_touch() → deteksi jempol
   │      ├── Kirim prompt ke LM Studio (1 gambar + user teks)
   │      ├── VLM response: {intent, updated_task, instruction}
   │      └── Speak: "Tombol power di kanan atas. Geser ke kanan..."
@@ -693,7 +700,7 @@ USER MINTA RESET
          │    │  │  Senter / Reset Layout   │        │
          │    │  │  "Apa tombol ini?"       │        │
          │    │  │  Konfirmasi task         │        │
-         │    │  │  "Dimana tombol X?"      │        │
+         │    │  │  "Dimana tombol X?" / "Nyalakan AC"      │        │
          │    │  └──────────────────────────┘        │
          │    │                                      │
          │    │  ┌──────────────────────────┐        │
@@ -768,9 +775,9 @@ Thread Safety:
 | Modul | Bahasa | Baris | Fungsi Utama |
 |-------|--------|-------|--------------|
 | `server_vision.py` | Python | ~550 | WebRTC server, HTTP API, TTS delivery (gTTS + Web Speech), graceful shutdown, preload cache |
-| `index.html` | HTML/JS | ~591 | Frontend HP WebRTC, hold-to-speak (touch+pointer), Web Speech API, flashlight, haptic feedback |
+| `index.html` | HTML/JS | ~618 | Frontend HP WebRTC, hold-to-speak (touch+pointer), Web Speech API, flashlight, haptic feedback, beep sound effects |
 | `audio_inference.py` | Python | ~257 | STT Whisper, hold-to-speak buffer, filter noise/halusinasi, VLM trigger, background monitor start |
-| `vision_reasoning.py` | Python | ~1114 | Layout setup (YOLO+OWL+VLM), thumb detection, VLM reasoning, background monitor, synonym matching |
+| `vision_reasoning.py` | Python | ~1206 | Layout setup (YOLO+OWL+VLM), thumb detection, VLM reasoning, background monitor, synonym matching, hardcode action intents |
 | `rotate_remote.py` | Python | ~183 | YOLO OBB rotation & cropping (OBB + axis-aligned fallback), configurable portrait lock |
 | `vision_models.py` | Python | ~48 | Lazy-loading singleton YOLO + OWL-ViT (thread-safe double-checked locking) |
 | `vision_http.py` | Python | ~121 | HTTP utilities, ThreadPool (4 workers), cv2_to_base64 letterbox, extract_json_object |

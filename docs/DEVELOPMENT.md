@@ -11,7 +11,7 @@ code2/
 ├── src/                          # Kode sumber utama
 │   ├── server_vision.py          # WebRTC server + HTTP API + TTS (~550 baris)
 │   ├── audio_inference.py        # STT Whisper + Hold-to-Speak + trigger VLM (~257 baris)
-│   ├── vision_reasoning.py       # Pipeline vision + VLM reasoning + task monitor (~1114 baris)
+│   ├── vision_reasoning.py       # Pipeline vision + VLM reasoning + task monitor (~1206 baris)
 │   ├── index.html                # Frontend HP (WebRTC + hold-to-speak + Web Speech)
 │   ├── rotate_remote.py          # YOLO OBB rotation & cropping (~183 baris)
 │   ├── vision_models.py          # Lazy-loading model YOLO + OWL-ViT (~48 baris)
@@ -90,7 +90,7 @@ Set `VISION_DEBUG=true` untuk menyimpan debug images di root folder.
 3. **Audio Streaming** — HP → WebRTC audio track → `AudioResampler` (s16, mono, 16kHz) → `/audio_feed` (WebSocket broadcast)
 4. **Hold-to-Speak** — HP touchstart → `hold_action:start_listening` → `audio_inference.py` mulai buffer → touchend → `hold_action:stop_listening` → drain 0.4s → Whisper STT
 5. **VLM Reasoning** — hasil STT → `process_vlm_reasoning()`:
-   - Hardcode tanpa VLM: senter, reset layout, "apa tombol ini?", konfirmasi, "dimana tombol X?"
+   - Hardcode tanpa VLM: senter, reset layout, "apa tombol ini?", konfirmasi, "dimana tombol X?", ACTION_INTENTS (nyalakan AC, atur suhu, ganti mode, dll)
    - Jika perlu VLM: ambil snapshot → deteksi thumb → kirim 1 gambar ke LM Studio → parse response → TTS
 6. **Background Monitor** — Thread daemon terpisah, setiap 500ms cek thumb position, auto-confirm jika menyentuh target
 

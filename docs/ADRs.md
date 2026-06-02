@@ -246,7 +246,10 @@ Dokumen ini mencatat keputusan arsitektur utama yang diambil selama pengembangan
 - Mengurangi beban GPU
 - Pattern matching cukup akurat untuk perintah sederhana
 
+**Perkembangan Terbaru (ADR-012b):** ACTION_INTENTS ditambahkan — 11 grup regex untuk perintah AC umum (power, suhu naik/turun, mode, fan, swing, turbo, eco, sleep, timer on/off). Jika tombol ditemukan di layout, sistem memberikan panduan arah langsung; jika tidak, fallback ke VLM.
+
 **Konsekuensi:**
 - Perlu maintenance SYNONYM_GROUPS untuk akurasi matching
 - Regex patterns perlu diupdate jika ada variasi bahasa baru
 - Tidak bisa handle pertanyaan kompleks tanpa VLM
+- ACTION_INTENTS menambah ~90 baris kode di `vision_reasoning.py`

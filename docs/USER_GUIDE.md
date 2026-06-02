@@ -101,6 +101,14 @@ Setelah jempol di tombol yang benar, tekan tombol fisik pada remote AC.
 
 | Perintah | Fungsi |
 |----------|--------|
+| "Nyalakan AC" / "Matikan AC" | Cari dan pandu ke tombol power |
+| "Naikkan suhu" / "Turunkan suhu" | Cari tombol suhu naik/turun |
+| "Ganti mode" | Cari tombol mode |
+| "Atur kipas" | Cari tombol fan/kipas |
+| "Aktifkan swing" | Cari tombol swing |
+| "Nyalakan turbo" / "Aktifkan eco" | Cari tombol turbo/eco |
+| "Set timer" / "Matikan timer" | Cari tombol timer |
+| "Mode tidur" / "Mode malam" | Cari tombol sleep |
 | "Reset layout" | Memindai ulang remote (gunakan jika ganti remote) |
 | "Senter" atau "Flashlight" | Nyalakan/matikan lampu HP |
 | "Apa tombol ini?" | Tanya fungsi tombol yang sedang disentuh |

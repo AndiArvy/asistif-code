@@ -65,8 +65,8 @@
 ### `vision_models.py` (48 lines)
 **Lazy model loader.** Thread-safe double-checked locking. Path configurable via env. Kode minimal dan bersih.
 
-### `vision_reasoning.py` (1114 lines)
-**Core VLM reasoning engine.** File terbesar. Banyak perbaikan: NMS untuk OWL, padding adaptif thumb mapping, hardcode tanpa VLM untuk senter/konfirmasi/dimana, location descriptions, background monitor, conversation history cap. Masih ada global state yang banyak.
+### `vision_reasoning.py` (~1206 lines)
+**Core VLM reasoning engine.** File terbesar. Banyak perbaikan: NMS untuk OWL, padding adaptif thumb mapping, hardcode tanpa VLM untuk senter/konfirmasi/dimana, ACTION_INTENTS (11 grup perintah AC), location descriptions, background monitor, conversation history cap. Masih ada global state yang banyak.
 
-### `index.html` (591 lines)
-**Frontend UI.** Web Speech API, flashlight toggle, dual TTS mode, hold-to-speak dengan pointer events + touch events, haptic feedback, safety timeout 30 detik, visibility change handler. Kode JS terstruktur baik dengan error handling.
+### `index.html` (~618 lines)
+**Frontend UI.** Web Speech API, flashlight toggle, dual TTS mode, hold-to-speak dengan pointer events + touch events, haptic vibration feedback, beep sound effects (Web Audio API), safety timeout 30 detik, visibility change handler. Kode JS terstruktur baik dengan error handling.

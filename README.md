@@ -11,6 +11,9 @@ Sistem asisten berbasis AI untuk penyandang tunanetra yang membantu mengoperasik
 - **Navigasi Layar Real-time** — Background monitor mendeteksi sentuhan jempol tanpa perlu bertanya
 - **Auto-Confirm** — Sistem otomatis konfirmasi saat jempol menyentuh tombol target
 - **Kontrol Senter** — Perintah suara "senter" untuk menyalakan/mematikan lampu HP
+- **Perintah Cepat AC** — Hardcode intent "nyalakan AC", "atur suhu", "ganti mode", dll tanpa VLM
+- **Haptic Vibration** — Feedback getaran saat mic aktif/mati dan konfirmasi tombol benar
+- **Beep Sound** — Suara sintetis naik/turun saat mic start/stop via Web Audio API
 - **Mode Hybrid** — Input terminal untuk testing tanpa HP
 
 ## Arsitektur Singkat

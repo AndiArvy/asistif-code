@@ -164,8 +164,8 @@ WebSocket utama untuk komunikasi bidirectional dengan frontend HP.
 // Log chat
 {"type": "log", "sender": "User | Sistem | Error", "text": "string"}
 
-// Kontrol khusus
-{"type": "Control", "text": "TOGGLE_FLASH"}
+// Kontrol khusus (dikirim via type "log" dengan sender "Control")
+{"type": "log", "sender": "Control", "text": "TOGGLE_FLASH"}
 ```
 
 **Pesan dari Client (server menerima):**
