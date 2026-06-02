@@ -124,6 +124,74 @@ ALLOWED_FUNCTIONS = sorted(set(
     for word in group
 ))
 
+# Intent → target function mapping (hardcode, tanpa VLM)
+ACTION_INTENTS = [
+    # Power
+    ([
+        r'(nyalakan|hidupkan|turn on).*(ac|pendingin|dingin)',
+        r'(matikan|turn off|shut ?off).*(ac|pendingin|dingin)',
+        r'ac.*(nyala|mati|hidup)',
+    ], "power"),
+
+    # Suhu Naik
+    ([
+        r'(naikkan|tambah|increase|up|panaskan).*(suhu|temp)',
+        r'suhu.*(naik|tambah|up|panas)',
+    ], "suhu naik"),
+
+    # Suhu Turun
+    ([
+        r'(turunkan|kurang|decrease|down|dinginkan).*(suhu|temp)',
+        r'suhu.*(turun|kurang|down|dingin)',
+    ], "suhu turun"),
+
+    # Mode
+    ([
+        r'(ganti|ubah|switch|set).*(mode)',
+        r'(set).*(mode).*(cool|dry|heat|auto|fan)',
+    ], "mode"),
+
+    # Fan
+    ([
+        r'(atur|naikkan|turunkan|set|ganti).*(kipas|fan|angin|kecepatan)',
+        r'kecepatan.*(kipas|fan|angin)',
+    ], "fan"),
+
+    # Swing
+    ([
+        r'(aktifkan|matikan|nyalakan|ganti|set).*(swing|ayun|sirip)',
+        r'(arah).*(angin)',
+    ], "swing"),
+
+    # Turbo
+    ([
+        r'(nyalakan|aktifkan|set|pakai).*(turbo|powerful|jet|fast)',
+        r'mode.*(turbo|cepat|kencang)',
+    ], "turbo"),
+
+    # Eco
+    ([
+        r'(nyalakan|aktifkan|set|pakai).*(eco|hemat|energy|irit)',
+        r'mode.*(eco|hemat|irit)',
+    ], "eco"),
+
+    # Sleep
+    ([
+        r'(nyalakan|aktifkan|mode).*(sleep|tidur|malam|senyap|quiet)',
+        r'(tidur|sleep|malam)',
+    ], "sleep"),
+
+    # Timer On
+    ([
+        r'(nyalakan|aktifkan|set|atur|pasang).*(timer|waktu)',
+    ], "timer on"),
+
+    # Timer Off
+    ([
+        r'(matikan|nonaktifkan|hapus|cancel|batal).*(timer|waktu)',
+    ], "timer off"),
+]
+
 def _result_xyxy_list(result):
     """Normalize YOLO detection outputs into xyxy integer boxes."""
     boxes = []
@@ -958,6 +1026,30 @@ def process_vlm_reasoning(user_text):
     # Jika ada task aktif tapi hardcode gagal, tetap kirim petunjuk ke VLM
     if is_dimana_question and has_active_task:
         user_text = f"{user_text} [PETUNJUK: Pengguna sedang mencari tombol yang sudah ditugaskan ('{active_task_context}'). JANGAN jawab detail layar. Beri petunjuk arah ke tombol tersebut.]"
+
+    # --- HARDCODE INTENT PERINTAH (NYALAKAN AC, ATUR SUHU, DLL) ---
+    for patterns, target_function in ACTION_INTENTS:
+        if any(re.search(p, normalized_text) for p in patterns):
+            matched = None
+            for indeks, data in layout_data.items():
+                fungsi = data.get("fungsi", "")
+                if fungsi and fungsi not in ["", "tidak diketahui"] and _match_task_texts(target_function, fungsi):
+                    matched = indeks
+                    break
+            if matched:
+                lokasi = layout_data[matched].get("location_desc", "")
+                fungsi = layout_data[matched]["fungsi"]
+                if lokasi:
+                    teks = f"Untuk {fungsi}, tombolnya berada di {lokasi}. Geser jempol Anda ke sana."
+                else:
+                    teks = f"Tombol {fungsi} sudah ditentukan. Silakan sentuh dan tekan."
+                _speak(teks)
+                active_task_context = fungsi
+                active_task_intent = "navigation"
+                conversation_history.append({"role": "user", "content": user_text})
+                conversation_history.append({"role": "assistant", "content": teks})
+                return
+            break  # Intent matched but button not found → fallback ke VLM
 
     # --- PERSIAPAN DATA PROMPT ---
     fungsi_tombol_saja = {
