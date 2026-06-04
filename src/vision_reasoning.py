@@ -1029,8 +1029,10 @@ def process_vlm_reasoning(user_text):
 
     # --- HARDCODE INTENT PERINTAH (NYALAKAN AC, ATUR SUHU, DLL) ---
     # Skip if utterance is a question, not a command
-    question_markers = [r'^apakah\b', r'^berapa\b', r'^bagaimana\b', r'^kapan\b', r'^mengapa\b', r'^kenapa\b', r'^siapa\b']
-    if not any(re.search(m, normalized_text) for m in question_markers):
+    question_starters = [r'^apakah\b', r'^bagaimana\b', r'^kapan\b', r'^mengapa\b', r'^kenapa\b', r'^siapa\b', r'^kalau\b', r'^kalo\b']
+    question_words = [r'\bberapa\b']
+    is_question = any(re.search(m, normalized_text) for m in question_starters) or any(re.search(w, normalized_text) for w in question_words)
+    if not is_question:
         for patterns, target_function in ACTION_INTENTS:
             if any(re.search(p, normalized_text) for p in patterns):
                 matched = None
