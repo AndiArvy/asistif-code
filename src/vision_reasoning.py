@@ -1127,9 +1127,12 @@ EXPECTED OUTPUT EXAMPLES (NO MARKDOWN):
 {"intent": "read_screen", "updated_task": "none", "target_location_desc": "N/A", "instruction": "Maaf, informasi di layar tidak terlihat."}
 """
 
+    history_entries = conversation_history[-4:] if conversation_history else []
+
     messages_payload = [
         {"role": "system", "content": system_prompt},
-            {
+        *history_entries,
+        {
             "role": "user",
             "content": [
                 {
