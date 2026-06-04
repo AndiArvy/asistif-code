@@ -130,7 +130,7 @@ ACTION_INTENTS = [
     ([
         r'(nyalakan|hidupkan|turn on).*(ac|pendingin|dingin)',
         r'(matikan|turn off|shut ?off).*(ac|pendingin|dingin)',
-        r'ac.*(nyala|mati|hidup)',
+        r'\b(ac|pendingin|dingin)\b.*\b(nyala|mati|hidup)\b',
     ], "power"),
 
     # Suhu Naik
@@ -1028,28 +1028,31 @@ def process_vlm_reasoning(user_text):
         user_text = f"{user_text} [PETUNJUK: Pengguna sedang mencari tombol yang sudah ditugaskan ('{active_task_context}'). JANGAN jawab detail layar. Beri petunjuk arah ke tombol tersebut.]"
 
     # --- HARDCODE INTENT PERINTAH (NYALAKAN AC, ATUR SUHU, DLL) ---
-    for patterns, target_function in ACTION_INTENTS:
-        if any(re.search(p, normalized_text) for p in patterns):
-            matched = None
-            for indeks, data in layout_data.items():
-                fungsi = data.get("fungsi", "")
-                if fungsi and fungsi not in ["", "tidak diketahui"] and _match_task_texts(target_function, fungsi):
-                    matched = indeks
-                    break
-            if matched:
-                lokasi = layout_data[matched].get("location_desc", "")
-                fungsi = layout_data[matched]["fungsi"]
-                if lokasi:
-                    teks = f"Untuk {fungsi}, tombolnya berada di {lokasi}. Geser jempol Anda ke sana."
-                else:
-                    teks = f"Tombol {fungsi} sudah ditentukan. Silakan sentuh dan tekan."
-                _speak(teks)
-                active_task_context = fungsi
-                active_task_intent = "navigation"
-                conversation_history.append({"role": "user", "content": user_text})
-                conversation_history.append({"role": "assistant", "content": teks})
-                return
-            break  # Intent matched but button not found → fallback ke VLM
+    # Skip if utterance is a question, not a command
+    question_markers = [r'^apakah\b', r'^berapa\b', r'^bagaimana\b', r'^kapan\b', r'^mengapa\b', r'^kenapa\b', r'^siapa\b']
+    if not any(re.search(m, normalized_text) for m in question_markers):
+        for patterns, target_function in ACTION_INTENTS:
+            if any(re.search(p, normalized_text) for p in patterns):
+                matched = None
+                for indeks, data in layout_data.items():
+                    fungsi = data.get("fungsi", "")
+                    if fungsi and fungsi not in ["", "tidak diketahui"] and _match_task_texts(target_function, fungsi):
+                        matched = indeks
+                        break
+                if matched:
+                    lokasi = layout_data[matched].get("location_desc", "")
+                    fungsi = layout_data[matched]["fungsi"]
+                    if lokasi:
+                        teks = f"Untuk {fungsi}, tombolnya berada di {lokasi}. Geser jempol Anda ke sana."
+                    else:
+                        teks = f"Tombol {fungsi} sudah ditentukan. Silakan sentuh dan tekan."
+                    _speak(teks)
+                    active_task_context = fungsi
+                    active_task_intent = "navigation"
+                    conversation_history.append({"role": "user", "content": user_text})
+                    conversation_history.append({"role": "assistant", "content": teks})
+                    return
+                break  # Intent matched but button not found → fallback ke VLM
 
     # --- PERSIAPAN DATA PROMPT ---
     fungsi_tombol_saja = {
