@@ -135,13 +135,13 @@ ACTION_INTENTS = [
 
     # Suhu Naik
     ([
-        r'(naikkan|tambah|increase|up|panaskan).*(suhu|temp)',
+        r'(naikkan|nambah|tambah|increase|up|panaskan).*(suhu|temp)',
         r'suhu.*(naik|tambah|up|panas)',
     ], "suhu naik"),
 
     # Suhu Turun
     ([
-        r'(turunkan|kurang|decrease|down|dinginkan).*(suhu|temp)',
+        r'(nurunkan|turunkan|kurang|decrease|down|dinginkan).*(suhu|temp)',
         r'suhu.*(turun|kurang|down|dingin)',
     ], "suhu turun"),
 
@@ -866,7 +866,7 @@ def process_vlm_reasoning(user_text):
     normalized_text = re.sub(r"\s+", " ", user_text.lower()).strip()
 
     # Flashlight voice control (tidak perlu VLM)
-    if any(kata in normalized_text for kata in ["senter", "flash", "flashlight", "lampu senter", "torch", "nyalakan senter", "matikan senter", "nyalakan lampu", "matikan lampu"]):
+    if any(kata in normalized_text for kata in ["senter", "flash", "flashlight", "lampu senter", "torch", "nyalakan senter", "nyalakan center", "matikan senter", "matikan center", "nyalakan lampu", "matikan lampu"]):
         _fire_and_forget_post(LOG_URL, json={"sender": "Control", "text": "TOGGLE_FLASH"})
         _speak("Senter")
         return
@@ -1075,41 +1075,56 @@ CRITICAL RULES (MUST OBEY):
 
 3. TASK STANDARDIZATION: The 'updated_task' in your JSON output MUST EXACTLY match one of the strings provided in 'Available Functions'. DO NOT generate custom or long descriptions. If the intent is just a question, output "none".
 
-4. READING THE LCD SCREEN: When screen information is relevant to answering the user's query — especially for "question" intent — always attempt to read the screen. Make your BEST EFFORT estimation even if the image is slightly blurry or the icons are small. Do NOT refuse just because you are not 100% certain.
-   - Temperature: Usually the largest numbers visible on the screen.
-   - Mode: Look for icons — Snowflake = Cool, Water Drop = Dry, Sun = Heat, Fan/Propeller = Fan Only.
-   - Fan Speed: Usually represented by a small bar graph, signal-bar style icon (vertical bars increasing in height), stair-step icon, or fan blades. Estimate the level (e.g., 1 bar = rendah, 2 bars = sedang, 3 bars = tinggi).
-   - If you are not fully certain but can make a reasonable guess → still answer, but prefix your instruction with "Sepertinya" or "Kemungkinan" to signal uncertainty to the user.
-   - Use EXACTLY "Maaf, detail informasi di layar tidak terbaca cukup jelas oleh kamera." ONLY IF:
-       (a) The screen is completely OFF or blank with no lit pixels, OR
-       (b) The remote is physically facing away from the camera so the screen is not visible at all.
-   - Being slightly blurry or having small icons is NOT a valid reason to refuse. Always attempt first.
+4. READING THE LCD SCREEN (ONLY FOR "read_screen" INTENT): 
+   - If the user asks about screen info (temp, mode, fan), attempt to read it even if slightly blurry.
+   - Temperature: Largest numbers.
+   - Mode: Snowflake (Cool), Water Drop (Dry), Sun (Heat), Fan (Fan Only).
+   - Fan Speed: Bar graph, stair-step, or fan blades.
+   - Uncertainty: Prefix with "Sepertinya" or "Kemungkinan" if unsure.
+   - COMPLETE FAILURE: Only if the screen is OFF (blank) or physically not facing the camera, output EXACTLY: "Maaf, informasi di layar tidak terlihat." 
+   - RULE OF THUMB: NEVER mention the screen, temperature, or modes if the user is asking about physical buttons.
 
-5. SPATIAL/TACTILE ONLY: Guide the user to physical buttons using only relative movements (atas, bawah, kiri, kanan) or absolute locations (pojok kiri atas, tengah remote, dll). Never use visual references.
+5. GENERAL QUESTIONS (FOR "general_question" INTENT):
+   - Answer questions about the remote's physical appearance, brand, color, condition, etc.
+   - NEVER mention screen info or button locations for this intent.
 
-6. OVERLAY LABELS ARE INTERNAL: You may use bbox/index labels (b1, b2, ...) internally to reason, but NEVER mention labels, index numbers, or box IDs in the final instruction to the user.
+6. SPATIAL/TACTILE ONLY: Guide the user to physical buttons using only relative movements (atas, bawah, kiri, kanan) or absolute locations (pojok kiri atas, tengah remote, dll). Never use visual references.
 
-7. RED THUMB MARKER: The red marker in the image indicates the user's current finger position. Use it to determine which button they are currently touching, and guide them relative to that position.
+7. OVERLAY LABELS ARE INTERNAL: You may use bbox/index labels (b1, b2, ...) internally to reason, but NEVER mention labels, index numbers, or box IDs in the final instruction to the user.
 
-8. INDONESIAN LANGUAGE: The final 'instruction' field MUST always be written in Indonesian.
+8. RED THUMB MARKER: The red marker in the image indicates the user's current finger position. Use it to determine which button they are currently touching, and guide them relative to that position.
 
-9. OUTPUT FORMAT: STRICTLY output a raw JSON object only. NO markdown (```json). NO extra text before or after the JSON.
+9. INDONESIAN LANGUAGE: The final 'instruction' field MUST always be written in Indonesian.
 
-10. PREVIOUS TASK PRIORITY: If 'Previous Task' is not 'none' and the user asks about the location or direction of a button, ALWAYS classify the intent as "navigation" with 'updated_task' set to the exact 'Previous Task' string. This rule overrides Rule 3 for location-based questions.
+10. OUTPUT FORMAT: STRICTLY output a raw JSON object only. NO markdown (```json). NO extra text before or after the JSON.
 
-INTENT CATEGORIES:
-- "navigation": User wants to execute a command, change a setting, OR asks for the physical location/direction of a specific button (e.g., "dimana tombol power", "tombol mode sebelah mana").
-- "confirmation": User asks if their current finger position is on the correct button.
-- "question": User asks for screen info (temperature, mode, fan speed) OR asks to identify the button they are currently touching (e.g., "tombol apa yang sedang saya sentuh?"). DO NOT use this intent if the user is asking where a specific target button is located.
-- "unknown": Query is unclear or does not fit any category above.
+11. PREVIOUS TASK PRIORITY: If 'Previous Task' is not 'none' and the user asks about the location or direction of a button, ALWAYS classify the intent as "navigation" with 'updated_task' set to the exact 'Previous Task' string. This rule overrides Rule 3 for location-based questions.
+
+INTENT CATEGORIES (CHOOSE STRICTLY ONE):
+- "navigation": User wants to execute a command, change a setting, or asks for the physical location of a target button (e.g., "dimana tombol power").
+- "confirmation": User asks if their current finger position is on the correct button for a specific task.
+- "identify_button": User asks to identify the button their finger is currently touching (e.g., "tombol apa yang sedang saya sentuh ini?"). DO NOT read the screen for this intent.
+- "read_screen": User explicitly asks for screen information (temperature, mode, fan speed).
+- "general_question": User asks a general visual question about the remote that is NOT about the screen info or button location (e.g., "remote ini merk apa?", "warna remotenya apa?").
+- "unknown": Query is unclear.
+
+INTENT PRIORITY (when the query is ambiguous):
+- If user asks for location/direction of a specific button → "navigation"
+- If user asks what button they are currently touching → "identify_button"
+- If user asks about screen/temperature/mode/fan info → "read_screen"
+- If user asks to confirm their finger is on the right button → "confirmation"
+- If user asks a visual question (brand, color, appearance) → "general_question"
+- Otherwise → "unknown"
 
 EXPECTED OUTPUT EXAMPLES (NO MARKDOWN):
-{{"intent": "navigation", "updated_task": "power", "target_location_desc": "pojok kanan atas", "instruction": "Untuk menyalakan AC, raba tombol di pojok kanan atas remote."}}
-{{"intent": "navigation", "updated_task": "temp down", "target_location_desc": "tengah bawah", "instruction": "Untuk menurunkan suhu, geser jempol Anda ke bawah menuju bagian tengah remote."}}
-{{"intent": "confirmation", "updated_task": "none", "target_location_desc": "N/A", "instruction": "Ya, jempol Anda sudah berada di tombol yang tepat. Silakan tekan."}}
-{{"intent": "question", "updated_task": "none", "target_location_desc": "N/A", "instruction": "Suhu di layar saat ini 24 derajat dengan mode cool, kecepatan kipas tampak rendah."}}
-{{"intent": "question", "updated_task": "none", "target_location_desc": "N/A", "instruction": "Sepertinya suhu sekitar 26 derajat dengan mode cool, namun gambar kurang jelas sehingga mohon konfirmasi jika terasa tidak sesuai."}}
-{{"intent": "navigation", "updated_task": "mode", "target_location_desc": "kiri atas", "instruction": "Tombol mode berada di sebelah kiri atas. Silakan geser jempol Anda ke atas dari posisi saat ini."}}
+{"intent": "navigation", "updated_task": "power", "target_location_desc": "pojok kanan atas", "instruction": "Untuk menyalakan AC, raba tombol di pojok kanan atas remote."}
+{"intent": "identify_button", "updated_task": "none", "target_location_desc": "N/A", "instruction": "Saat ini jempol Anda sedang menyentuh tombol pengatur suhu turun."}
+{"intent": "general_question", "updated_task": "none", "target_location_desc": "N/A", "instruction": "Berdasarkan logo yang terlihat, ini adalah remote AC merk Panasonic."}
+{"intent": "confirmation", "updated_task": "none", "target_location_desc": "N/A", "instruction": "Ya, jempol Anda sudah berada di tombol mode yang tepat. Silakan tekan."}
+{"intent": "read_screen", "updated_task": "none", "target_location_desc": "N/A", "instruction": "Suhu di layar saat ini 24 derajat dengan mode pendingin, kecepatan kipas rendah."}
+{"intent": "read_screen", "updated_task": "none", "target_location_desc": "N/A", "instruction": "AC sedang dalam mode kering untuk menyerap kelembapan, suhu menunjukkan 26 derajat."}
+{"intent": "read_screen", "updated_task": "none", "target_location_desc": "N/A", "instruction": "AC sekarang menyala sebagai kipas angin biasa."}
+{"intent": "read_screen", "updated_task": "none", "target_location_desc": "N/A", "instruction": "Maaf, informasi di layar tidak terlihat."}
 """
 
     messages_payload = [
@@ -1168,8 +1183,8 @@ EXPECTED OUTPUT EXAMPLES (NO MARKDOWN):
             # ========================================================
             # --- JIKA NIATNYA BERTANYA (MEMBACA STATUS LAYAR) ---
             # ========================================================
-            if intent == "question":
-                teks = instruction if instruction else "Maaf, layar remote kurang jelas."
+            if intent == "read_screen":
+                teks = instruction if instruction else "Maaf, informasi di layar tidak terlihat."
                 active_task_intent = None
                 # Tidak perlu update active_task_context, biarkan user bisa lanjut navigasi
                 
