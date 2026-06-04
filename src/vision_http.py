@@ -53,7 +53,7 @@ def capture_current_frame() -> Optional[np.ndarray]:
     return None
 
 
-def cv2_to_base64(image_array: np.ndarray | None, target_size: tuple[int, int] = (360, 640)) -> Optional[str]:
+def cv2_to_base64(image_array: np.ndarray | None, target_size: tuple[int, int] = (480, 854)) -> Optional[str]:
     if image_array is None or image_array.size == 0:
         return None
 

@@ -1093,7 +1093,9 @@ CRITICAL RULES (MUST OBEY):
 
 3. TASK STANDARDIZATION: The 'updated_task' in your JSON output MUST EXACTLY match one of the strings provided in 'Available Functions'. DO NOT generate custom or long descriptions. If the intent is just a question, output "none".
 
-4. READING THE LCD SCREEN (ONLY FOR "read_screen" INTENT): 
+4. READING THE LCD SCREEN (ONLY FOR "read_screen" INTENT):
+   ⚠️ CRITICAL: Physical buttons have PRINTED icons/labels (e.g., a fan icon printed on a button, a snowflake on a button). These indicate the BUTTON'S FUNCTION, NOT the current system state. IGNORE all printed button icons — they are NOT the LCD screen.
+   ⚠️ The LCD SCREEN is a separate small rectangular display at the TOP of the remote (above the buttons), with electronic glowing/dark pixels. ONLY read information from this LCD area. NEVER read printed button icons as the current mode or state.
    - If the user asks about screen info (temp, mode, fan), attempt to read it even if slightly blurry.
    - Temperature: Largest numbers.
    - Mode: Snowflake (Cool), Water Drop (Dry), Sun (Heat), Fan (Fan Only).
