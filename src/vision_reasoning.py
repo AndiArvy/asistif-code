@@ -1117,21 +1117,26 @@ INTENT PRIORITY (when the query is ambiguous):
 - Otherwise → "unknown"
 
 EXPECTED OUTPUT EXAMPLES (NO MARKDOWN):
-{"intent": "navigation", "updated_task": "power", "target_location_desc": "pojok kanan atas", "instruction": "Untuk menyalakan AC, raba tombol di pojok kanan atas remote."}
-{"intent": "identify_button", "updated_task": "none", "target_location_desc": "N/A", "instruction": "Saat ini jempol Anda sedang menyentuh tombol pengatur suhu turun."}
-{"intent": "general_question", "updated_task": "none", "target_location_desc": "N/A", "instruction": "Berdasarkan logo yang terlihat, ini adalah remote AC merk Panasonic."}
-{"intent": "confirmation", "updated_task": "none", "target_location_desc": "N/A", "instruction": "Ya, jempol Anda sudah berada di tombol mode yang tepat. Silakan tekan."}
-{"intent": "read_screen", "updated_task": "none", "target_location_desc": "N/A", "instruction": "Suhu di layar saat ini 24 derajat dengan mode pendingin, kecepatan kipas rendah."}
-{"intent": "read_screen", "updated_task": "none", "target_location_desc": "N/A", "instruction": "AC sedang dalam mode kering untuk menyerap kelembapan, suhu menunjukkan 26 derajat."}
-{"intent": "read_screen", "updated_task": "none", "target_location_desc": "N/A", "instruction": "AC sekarang menyala sebagai kipas angin biasa."}
-{"intent": "read_screen", "updated_task": "none", "target_location_desc": "N/A", "instruction": "Maaf, informasi di layar tidak terlihat."}
+{{"intent": "navigation", "updated_task": "power", "target_location_desc": "pojok kanan atas", "instruction": "Untuk menyalakan AC, raba tombol di pojok kanan atas remote."}}
+{{"intent": "identify_button", "updated_task": "none", "target_location_desc": "N/A", "instruction": "Saat ini jempol Anda sedang menyentuh tombol pengatur suhu turun."}}
+{{"intent": "general_question", "updated_task": "none", "target_location_desc": "N/A", "instruction": "Berdasarkan logo yang terlihat, ini adalah remote AC merk Panasonic."}}
+{{"intent": "confirmation", "updated_task": "none", "target_location_desc": "N/A", "instruction": "Ya, jempol Anda sudah berada di tombol mode yang tepat. Silakan tekan."}}
+{{"intent": "read_screen", "updated_task": "none", "target_location_desc": "N/A", "instruction": "Suhu di layar saat ini 24 derajat dengan mode pendingin, kecepatan kipas rendah."}}
+{{"intent": "read_screen", "updated_task": "none", "target_location_desc": "N/A", "instruction": "AC sedang dalam mode kering untuk menyerap kelembapan, suhu menunjukkan 26 derajat."}}
+{{"intent": "read_screen", "updated_task": "none", "target_location_desc": "N/A", "instruction": "AC sekarang menyala sebagai kipas angin biasa."}}
+{{"intent": "read_screen", "updated_task": "none", "target_location_desc": "N/A", "instruction": "Maaf, informasi di layar tidak terlihat."}}
 """
 
-    history_entries = conversation_history[-4:] if conversation_history else []
+    if conversation_history:
+        recent = conversation_history[-4:]
+        history_text = "RECENT CONVERSATION HISTORY:\n" + "\n".join(
+            f"{'User' if m['role'] == 'user' else 'Assistant'}: {m['content']}"
+            for m in recent
+        )
+        system_prompt = system_prompt + "\n\n" + history_text
 
     messages_payload = [
         {"role": "system", "content": system_prompt},
-        *history_entries,
         {
             "role": "user",
             "content": [
