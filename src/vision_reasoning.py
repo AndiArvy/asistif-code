@@ -178,7 +178,7 @@ ACTION_INTENTS = [
     # Sleep
     ([
         r'(nyalakan|aktifkan|mode).*(sleep|tidur|malam|senyap|quiet)',
-        r'(tidur|sleep|malam)',
+        r'\b(tidur|sleep)\b',
     ], "sleep"),
 
     # Timer On
@@ -1029,9 +1029,22 @@ def process_vlm_reasoning(user_text):
 
     # --- HARDCODE INTENT PERINTAH (NYALAKAN AC, ATUR SUHU, DLL) ---
     # Skip if utterance is a question, not a command
-    question_starters = [r'^apakah\b', r'^bagaimana\b', r'^kapan\b', r'^mengapa\b', r'^kenapa\b', r'^siapa\b', r'^kalau\b', r'^kalo\b']
-    question_words = [r'\bberapa\b']
-    is_question = any(re.search(m, normalized_text) for m in question_starters) or any(re.search(w, normalized_text) for w in question_words)
+    question_starters = [
+        r'^apakah\b', r'^apa\b', r'^bagaimana\b', r'^gimana\b', r'^gmna\b', r'^gmn\b',
+        r'^kapan\b', r'^mengapa\b', r'^kenapa\b', r'^siapa\b', r'^kalau\b', r'^kalo\b',
+    ]
+    question_anywhere = [
+        r'\bberapa\b', r'\bgimana\b', r'\bgmna\b', r'\bgmn\b',
+        r'\bkemana\b', r'\bke mana\b',
+        r'\bnggak\b', r'\bngga\b', r'\benggak\b', r'\bengga\b', r'\bgak\b',
+        r'\bsudah\b', r'\budah\b', r'\bbelum\b',
+        r'\bkok\b', r'\bkah\b',
+    ]
+    is_question = (
+        any(re.search(m, normalized_text) for m in question_starters) or
+        any(re.search(w, normalized_text) for w in question_anywhere) or
+        '?' in normalized_text
+    )
     if not is_question:
         for patterns, target_function in ACTION_INTENTS:
             if any(re.search(p, normalized_text) for p in patterns):
