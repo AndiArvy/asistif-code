@@ -1,14 +1,54 @@
-aiohttp>=3.9.0
+# Remote AC Assistive System - dependencies
+# Dipasang dengan:  pip install -r requirements.txt
+#
+# Catatan torch/torchvision: wheel CUDA harus diambil dari indeks PyTorch.
+# File ini menggunakan --extra-index-url, jadi pip otomatis mencari di dua
+# tempat (PyPI + PyTorch cu126). Untuk CUDA lain, ubah URL di bawah:
+#   cu124 -> https://download.pytorch.org/whl/cu124
+#   cu128 -> https://download.pytorch.org/whl/cu128
+#   cpu   -> https://download.pytorch.org/whl/cpu
+# Untuk CPU only, ganti baris torch/torchvision di bawah menjadi tanpa suffix:
+#   torch==2.12.0
+#   torchvision==0.27.0
+
+--extra-index-url https://download.pytorch.org/whl/cu126
+
+# --- WebRTC + transport layer ---
+aiohttp>=3.10.0,<4
 aiortc>=1.5.0
-av>=10.0.0
-gtts>=2.5.0
-faster-whisper>=1.0.0
-numpy>=1.24.0
 websockets>=12.0
-requests>=2.31.0
+av>=10.0.0
+aioice>=0.9.0
+pyee>=12.0.0
+pylibsrtp>=0.10.0
+pyOpenSSL>=23.0.0
+cryptography>=41.0.0
+dnspython>=2.4.0
+ifaddr>=0.2.0
+cffi>=1.16.0
+google-crc32c>=1.5.0
+httpx>=0.27.0
+
+# --- AI / ML stack ---
+# torch & torchvision dipasang dari indeks PyTorch (cu126 build, cocok untuk driver CUDA 12.x)
+torch==2.12.0+cu126
+torchvision==0.27.0+cu126
 ultralytics>=8.0.0
-torch>=2.0.0
-torchvision>=0.15.0
-transformers>=4.36.0
+# Pin <5 agar Owlv2Processor (di vision_models.py) kompatibel.
+# transformers 5.x mengubah banyak API vision & OWL-ViT tidak lagi ter-load.
+transformers>=4.36.0,<5
+
+# --- Audio + Vision ---
+faster-whisper>=1.0.0
+gTTS>=2.5.0
 opencv-python>=4.8.0
 Pillow>=10.0.0
+numpy<2
+
+# --- Utilitas ---
+requests>=2.31.0
+
+# --- Opsional: perekam data (log_daemon.py) ---
+# psutil dipakai untuk monitoring CPU/memori di log_daemon.
+# Jika tidak dipasang, monitoring CPU/memori otomatis dinonaktifkan.
+psutil>=5.9.0

@@ -17,7 +17,8 @@ code2/
 │   ├── vision_models.py          # Lazy-loading model YOLO + OWL-ViT (~48 baris)
 │   ├── vision_http.py            # HTTP utilities dgn ThreadPool (~121 baris)
 │   ├── tts_cache.py              # TTS file caching dengan MD5 index (~97 baris)
-│   └── hybrid_inference.py       # Entry alternatif (terminal input) (~87 baris)
+│   ├── hybrid_inference.py       # Entry alternatif (terminal input) (~87 baris)
+│   └── log_daemon.py             # Perekam data ke CSV, opsional (~476 baris)
 ├── docs/                         # Dokumentasi
 │   ├── ARSITEKTUR_SISTEM.md      # Dokumentasi arsitektur lengkap
 │   ├── API.md                    # Dokumentasi API
@@ -29,6 +30,8 @@ code2/
 ├── best.pt                       # Model YOLOv26n OBB (remote + jempol detection)
 ├── tts_cache/                    # Cache TTS lokal
 │   └── cache_index.json          # Index mapping hash → file
+├── logs/                         # Output log_daemon (CSV, gitignored)
+├── requirements.txt              # Dependensi (torch cu126 default)
 ├── layout.json                   # Hasil mapping tombol remote
 ├── debug_*.jpg                   # Debug images (jika VISION_DEBUG=true)
 └── README.md                     # Quick-start guide
@@ -40,7 +43,7 @@ code2/
 
 | Komponen | Teknologi | Versi |
 |----------|-----------|-------|
-| WebRTC Server | aiohttp + aiortc | 3.9+ / 1.5+ |
+| WebRTC Server | aiohttp + aiortc | 3.10+ / 1.5+ |
 | Frontend | HTML/JS (vanilla) | ES2020 |
 | Speech-to-Text | faster-whisper | large-v3-turbo |
 | Object Detection | Ultralytics YOLOv26n OBB | custom |
@@ -48,6 +51,10 @@ code2/
 | Vision LLM | LM Studio API | OpenAI-compatible |
 | Text-to-Speech | Google gTTS + Web Speech API | 3.x / browser native |
 | Audio Resample | PyAV | 10.x |
+| Deep Learning | PyTorch (CUDA cu126) | 2.12 |
+| Perekam data | psutil (opsional) | 5.9+ |
+
+> **Catatan torch:** `requirements.txt` menyematkan `torch==2.12.0+cu126` via `--extra-index-url https://download.pytorch.org/whl/cu126`. Untuk CUDA lain atau CPU-only, sesuaikan URL & pin di bagian atas file (lihat komentar di sana).
 
 ---
 
@@ -62,7 +69,8 @@ cd code2
 python -m venv venv
 source venv/bin/activate  # atau venv\Scripts\activate
 
-# Install dependencies
+# Install dependencies (default: CUDA 12.6 build torch)
+pip install --upgrade pip
 pip install -r requirements.txt
 ```
 
@@ -77,6 +85,9 @@ python src/audio_inference.py
 
 # Terminal 3 (opsional - mode hybrid tanpa HP)
 python src/hybrid_inference.py
+
+# Terminal 4 (opsional - rekam data ke logs/*.csv)
+python src/log_daemon.py
 ```
 
 Set `VISION_DEBUG=true` untuk menyimpan debug images di root folder.
@@ -178,6 +189,10 @@ OWL_MODEL_NAME=google/owlv2-base-patch16-ensemble
 # Debug
 VISION_DEBUG=true
 MAX_CONVERSATION_HISTORY=20
+
+# Log daemon (opsional)
+LOG_DIR=logs
+LOG_POLL_INTERVAL=1
 ```
 
 ## Testing
@@ -215,6 +230,10 @@ VISION_DEBUG=true    # Simpan debug images ke root (default: true)
 - Error di console server biasanya diawali `[Warning]`, `[Error]`, atau `[TTS]`
 - Lihat output `[DEBUG VISION]` untuk info task aktif dan deteksi jempol
 - Hold-to-speak log: `[Hold] MULAI/BERHENTI/memproses audio...`
+
+### Log terstruktur & perekaman data:
+- `vision_reasoning.py` memanggil `_log(...)` untuk mencatat keputusan rule/VLM (mis. `Rule: Confirm match`, `VLM: intent=...`) ke frontend. Pesan ini tampil di chat HP **dan** ikut direkam log daemon.
+- Jalankan `python src/log_daemon.py` untuk merekam percakapan, waktu respons (STT/reasoning/total), dan status sistem ke `logs/*.csv` — berguna untuk analisis performa & evaluasi. Lihat [ARSITEKTUR_SISTEM.md §4.10](ARSITEKTUR_SISTEM.md#410-log_daemonpy-perekam-data).
 
 ## Kontribusi
 

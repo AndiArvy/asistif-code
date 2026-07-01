@@ -253,3 +253,25 @@ Dokumen ini mencatat keputusan arsitektur utama yang diambil selama pengembangan
 - Regex patterns perlu diupdate jika ada variasi bahasa baru
 - Tidak bisa handle pertanyaan kompleks tanpa VLM
 - ACTION_INTENTS menambah ~90 baris kode di `vision_reasoning.py`
+
+---
+
+## ADR-013: Log Daemon Terpisah untuk Perekaman Data
+
+**Status:** Accepted
+
+**Konteks:** Untuk evaluasi kuantitatif (mis. skripsi) diperlukan data percakapan, waktu respons (STT/reasoning/total), dan status sistem. Opsi: menanam instrumentasi langsung di `server_vision.py`/`audio_inference.py`, atau proses terpisah yang mengamati lalu lintas WebSocket.
+
+**Keputusan:** Proses opsional terpisah (`log_daemon.py`) yang berlangganan `/frontend_ws` dan `/command_feed` sebagai client read-only, lalu menulis tiga file CSV per hari ke `logs/`.
+
+**Alasan:**
+- Non-intrusif: tidak menambah beban atau titik gagal pada pipeline real-time
+- Bisa dinyalakan hanya saat pengumpulan data diperlukan
+- Memanfaatkan pesan `{type:"log"}` yang sudah ada, termasuk log terstruktur `_log(...)` di `vision_reasoning.py` — jejak keputusan rule/VLM ikut terekam tanpa instrumentasi tambahan
+- Timestamp per sesi (`t_start`/`t_stt_done`/`t_response`) memberi metrik latency yang siap dianalisis
+- Rotasi harian menjaga file tetap ringkas
+
+**Konsekuensi:**
+- Metrik waktu bergantung pada urutan pesan WebSocket (event orphan ditandai bila timestamp tidak lengkap)
+- `psutil` opsional untuk CPU/memori (dinonaktifkan otomatis bila tak terpasang)
+- File `logs/` di-gitignore agar data eksperimen tidak masuk repo

@@ -61,6 +61,8 @@ pip install --upgrade pip
 pip install -r requirements.txt
 ```
 
+> `requirements.txt` default menyematkan `torch==2.12.0+cu126` (CUDA 12.6) melalui `--extra-index-url`. Untuk CUDA lain (`cu124`/`cu128`) atau CPU-only, ubah URL & pin torch di bagian atas file sesuai komentar di sana.
+
 ### 3. Siapkan Model AI
 
 **YOLO Model (`best.pt`)**
@@ -119,6 +121,9 @@ python src/server_vision.py
 
 # Terminal 2: Audio inference
 python src/audio_inference.py
+
+# Terminal 3 (opsional): Perekam data ke logs/*.csv
+python src/log_daemon.py
 ```
 
 **Menggunakan systemd (Linux):**
@@ -229,6 +234,7 @@ Sistem menyediakan:
    - `debug_*_reference.jpg`: reference layout images
 3. **TTSCache**: `tts_cache/cache_index.json` untuk audit TTS
 4. **Layout JSON**: `layout.json` untuk hasil mapping tombol
+5. **Log Daemon (CSV)**: `python src/log_daemon.py` merekam percakapan, waktu respons (STT/reasoning/total), dan status sistem ke `logs/*.csv` untuk evaluasi kuantitatif. Pengamat pasif — tidak memengaruhi service utama. CPU/memori memerlukan `psutil` (opsional). Lihat [ARSITEKTUR_SISTEM.md §4.10](ARSITEKTUR_SISTEM.md#410-log_daemonpy-perekam-data).
 
 Untuk logging production, redirect stdout:
 ```bash

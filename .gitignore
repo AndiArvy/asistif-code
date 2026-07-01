@@ -1,5 +1,18 @@
+# Debug artefak vision
 debug_*.jpg
 layout.json
+
+# Data hasil perekaman (log_daemon.py)
+logs/
+
+# Cache TTS yang di-generate (index tetap dilacak bila diinginkan)
+tts_cache/*.mp3
+
+# Virtual environment
+venv/
+.venv/
+
+# Misc
 ignore*
 __pycache__/
 .vscode/

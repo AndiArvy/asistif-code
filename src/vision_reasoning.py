@@ -868,6 +868,7 @@ def process_vlm_reasoning(user_text):
     # Flashlight voice control (tidak perlu VLM)
     if any(kata in normalized_text for kata in ["senter", "flash", "flashlight", "lampu senter", "torch", "nyalakan senter", "nyalakan center", "matikan senter", "matikan center", "nyalakan lampu", "matikan lampu"]):
         _fire_and_forget_post(LOG_URL, json={"sender": "Control", "text": "TOGGLE_FLASH"})
+        _log("Rule: Flashlight toggle")
         _speak("Senter")
         return
 
@@ -875,11 +876,13 @@ def process_vlm_reasoning(user_text):
         is_layout_ready = False
         active_task_context = DEFAULT_TASK_CONTEXT
         active_task_intent = None
+        _log("Rule: Reset layout")
         _speak("Layout direset. Letakkan remote di depan kamera.")
         return
 
     if not is_layout_ready:
         sukses = auto_setup_layout(silent=False)
+        _log(f"Rule: Auto-setup layout -> {'success' if sukses else 'failed'}")
         if not sukses:
             return
 
@@ -892,7 +895,10 @@ def process_vlm_reasoning(user_text):
     current_drawn_cv = touch_info["current_drawn_cv"]
     reference_drawn_cv = touch_info["reference_drawn_cv"]
 
+    _log(f"State: thumb_touch={current_touched_fungsi}, thumb_center={thumb_center}")
+
     if current_drawn_cv is None or reference_drawn_cv is None:
+        _log("Rule: Remote tidak terlihat di kamera")
         _speak("Remote tidak terlihat di kamera. Arahkan kembali.")
         return
 
@@ -928,6 +934,7 @@ def process_vlm_reasoning(user_text):
             teks = f"Ini adalah tombol {current_touched_fungsi}."
         else:
             teks = "Jempol anda belum menyentuh tombol manapun."
+        _log(f"Rule: What button -> {teks}")
         _speak(teks)
         conversation_history.append({"role": "user", "content": user_text})
         conversation_history.append({"role": "assistant", "content": teks})
@@ -952,6 +959,7 @@ def process_vlm_reasoning(user_text):
 
     if is_confirm and has_active_task and is_touch_valid:
         if is_target_matched(current_touched_fungsi, active_task_context):
+            _log(f"Rule: Confirm match -> {current_touched_fungsi} == {active_task_context}")
             teks = "Iya, benar. Ini tombol yang tepat. Silakan tekan sekarang."
             _speak(teks)
             active_task_context = DEFAULT_TASK_CONTEXT
@@ -972,6 +980,7 @@ def process_vlm_reasoning(user_text):
                 teks = f"Sebenarnya, ini tombol {current_touched_fungsi}, bukan {active_task_context}, coba raba di {lokasi}."
             else:
                 teks = f"Maaf, ini tombol {current_touched_fungsi}, bukan {active_task_context}."
+            _log(f"Rule: Confirm mismatch -> {current_touched_fungsi} != {active_task_context}")
             _speak(teks)
             conversation_history.append({"role": "user", "content": user_text})
             conversation_history.append({"role": "assistant", "content": teks})
@@ -1016,6 +1025,7 @@ def process_vlm_reasoning(user_text):
             fungsi = layout_data[matched]["fungsi"]
             if lokasi:
                 teks = f"Tombol {fungsi} berada di {lokasi}."
+                _log(f"Rule: Hardcoded dimana -> {fungsi} at {lokasi}")
                 _speak(teks)
                 active_task_context = fungsi
                 active_task_intent = "navigation"
@@ -1025,6 +1035,7 @@ def process_vlm_reasoning(user_text):
 
     # Jika ada task aktif tapi hardcode gagal, tetap kirim petunjuk ke VLM
     if is_dimana_question and has_active_task:
+        _log(f"Rule: Dimana + has_active_task -> VLM override with task='{active_task_context}'")
         user_text = f"{user_text} [PETUNJUK: Pengguna sedang mencari tombol yang sudah ditugaskan ('{active_task_context}'). JANGAN jawab detail layar. Beri petunjuk arah ke tombol tersebut.]"
 
     # --- HARDCODE INTENT PERINTAH (NYALAKAN AC, ATUR SUHU, DLL) ---
@@ -1061,6 +1072,7 @@ def process_vlm_reasoning(user_text):
                         teks = f"Untuk {fungsi}, tombolnya berada di {lokasi}. Geser jempol Anda ke sana."
                     else:
                         teks = f"Tombol {fungsi} sudah ditentukan. Silakan sentuh dan tekan."
+                    _log(f"Rule: Action intent -> target={target_function}, match={fungsi}")
                     _speak(teks)
                     active_task_context = fungsi
                     active_task_intent = "navigation"
@@ -1201,11 +1213,12 @@ EXPECTED OUTPUT EXAMPLES (NO MARKDOWN):
         if isinstance(parsed, dict):
             # --- AMBIL INTENT ---
             intent = (parsed.get("intent") or "navigation").strip().lower()
-            
+
             new_task = (parsed.get("updated_task") or "").strip()
             target_location = (parsed.get("target_location_desc") or "").strip()
             instruction = (parsed.get("instruction") or "").strip()
 
+            _log(f"VLM: intent={intent}, task={new_task}, location={target_location}, instruction={instruction[:100]}")
             print(f"[DEBUG VISION] Intent: {intent}")
 
             # ========================================================
@@ -1233,6 +1246,7 @@ EXPECTED OUTPUT EXAMPLES (NO MARKDOWN):
                 else:
                     teks = f"{instruction}"
         else:
+            _log(f"VLM: JSON parse failed -> raw={content_text[:200]}")
             teks = "Maaf, panduan terputus. Bisa ulangi?"
 
         if teks:

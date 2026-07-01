@@ -180,6 +180,8 @@ WebSocket utama untuk komunikasi bidirectional dengan frontend HP.
 
 Pesan `hold_action` dari HP diteruskan ke `/command_feed` untuk diproses oleh `audio_inference.py`. Pesan `capability` mendaftarkan client sebagai pendukung Web Speech API.
 
+> **Pengamat pasif:** `log_daemon.py` (opsional) juga berlangganan `/frontend_ws` dan `/command_feed` sebagai client read-only untuk merekam percakapan, waktu respons, dan status ke CSV. Pesan `{type:"log"}` — termasuk log terstruktur `_log(...)` dari `vision_reasoning.py` — menjadi sumber datanya. Lihat [ARSITEKTUR_SISTEM.md §4.10](ARSITEKTUR_SISTEM.md#410-log_daemonpy-perekam-data).
+
 ---
 
 ### `WS /audio_feed`

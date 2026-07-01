@@ -14,6 +14,7 @@
    - [4.7 vision_http.py](#47-vision_httppy---utilitas-http)
    - [4.8 tts_cache.py](#48-tts_cachepy---sistem-cache-tts)
    - [4.9 hybrid_inference.py](#49-hybrid_inferencepy---alternatif-entri-point)
+   - [4.10 log_daemon.py](#410-log_daemonpy-perekam-data)
 5. [Alur Proses Lengkap](#5-alur-proses-lengkap)
 6. [Diagram Alur](#6-diagram-alur)
 
@@ -108,10 +109,12 @@ code2/
 │   ├── vision_models.py        # Lazy-loading model (YOLO + OWL) thread-safe singleton
 │   ├── vision_http.py          # HTTP utilities (LM Studio, snapshot, TTS, ThreadPool)
 │   ├── tts_cache.py            # Cache TTS lokal dengan MD5 index
-│   └── hybrid_inference.py     # [ALTERNATIF] Input terminal + tap layar
+│   ├── hybrid_inference.py     # [ALTERNATIF] Input terminal + tap layar
+│   └── log_daemon.py           # [OPSIONAL] Perekam data ke CSV (riset/evaluasi)
 ├── best.pt                     # Model YOLOv26n OBB (remote + jempol detection)
 ├── tts_cache/                  # Folder cache suara TTS
 │   └── cache_index.json        # Index mapping hash → filename
+├── logs/                       # Output log_daemon (conversation/status/events .csv)
 ├── layout.json                 # Hasil mapping tombol remote
 └── debug_*.jpg                 # Debug images (jika VISION_DEBUG=true)
 ```
@@ -444,7 +447,7 @@ Sistem matching cerdas dengan 3 mekanisme:
 | `safe_post(url)` | POST dengan error handling, timeout configurable |
 | `fire_and_forget_post(url)` | POST di ThreadPool (non-blocking, 4 workers) |
 | `capture_current_frame()` | GET /snapshot → decode JPEG → numpy array |
-| `cv2_to_base64(image)` | Resize letterbox 360×640 → encode PNG → base64 |
+| `cv2_to_base64(image)` | Resize letterbox 480×854 → encode PNG → base64 |
 | `extract_json_object(text)` | Parse JSON dari teks (handle markdown, nested braces) |
 | `speak(text)` | Cek cache TTS → trigger TTS via HTTP (fire-and-forget) |
 | `log_system(text)` | Kirim log sistem ke frontend |
@@ -489,6 +492,40 @@ tts_cache/
 4. Ketiga fungsi berjalan parallel via `asyncio.gather()`
 
 **Cocok untuk:** Debugging, testing tanpa HP, atau situasi di mana mic tidak tersedia.
+
+---
+
+### 4.10 `log_daemon.py`: Perekam Data
+
+**Tujuan:** Proses **opsional** yang merekam jalannya sistem untuk keperluan riset/evaluasi (mis. skripsi). Bertindak sebagai **pengamat pasif** — tidak memengaruhi pipeline utama.
+
+**Cara Kerja:**
+1. Terhubung sebagai client ke dua WebSocket server: `/frontend_ws` dan `/command_feed` (dengan auto-reconnect).
+2. Menganotasi setiap sesi hold-to-speak dengan tiga timestamp:
+   - `t_start` (touchend / `stop_listening`)
+   - `t_stt_done` (teks STT diterima)
+   - `t_response` (respons TTS dikirim)
+   - → menghasilkan `stt_time_ms`, `reasoning_time_ms`, `total_time_ms`.
+3. Poll status server setiap `LOG_POLL_INTERVAL` detik (`GET /` dan `/snapshot`) untuk cek `server_alive` & `camera_ready`, plus CPU/memori via `psutil` (jika tersedia).
+4. Rotasi file harian otomatis (`daily_rotation`).
+
+**File Output (folder `logs/`, satu set per hari):**
+| File | Isi |
+|------|-----|
+| `conversation_YYYY-MM-DD.csv` | Percakapan + intent, target button, dan waktu STT/reasoning/total |
+| `system_status_YYYY-MM-DD.csv` | Snapshot status periodik (layout ready, busy, camera, CPU, memori) |
+| `events_YYYY-MM-DD.csv` | Semua event mentah (hold_start/stop, stt_complete, response_ready, error) |
+
+**Sumber data:** Log daemon memanfaatkan pesan `{type:"log"}` yang dikirim modul lain ke frontend — termasuk log terstruktur `_log(...)` di `vision_reasoning.py` yang mencatat keputusan rule/VLM (mis. `Rule: Confirm match`, `VLM: intent=...`). Dengan begitu jejak keputusan sistem ikut terekam tanpa instrumentasi tambahan.
+
+**Konfigurasi:**
+| Variabel | Default | Deskripsi |
+|----------|---------|-----------|
+| `LOG_DIR` | `logs` | Folder output CSV |
+| `LOG_POLL_INTERVAL` | `1` | Interval poll status sistem (detik) |
+| `SERVER_HOST` / `SERVER_PORT` | `localhost` / `8080` | Target server yang dipantau |
+
+**Dependensi opsional:** `psutil` (untuk CPU/memori). Tanpa `psutil`, kolom CPU/memori dikosongkan dan sisanya tetap berjalan normal.
 
 ---
 
@@ -783,12 +820,13 @@ Thread Safety:
 | `vision_http.py` | Python | ~121 | HTTP utilities, ThreadPool (4 workers), cv2_to_base64 letterbox, extract_json_object |
 | `tts_cache.py` | Python | ~97 | TTS audio caching, MD5 hash index, thread-safe, cache info/statistics |
 | `hybrid_inference.py` | Python | ~87 | Alternative entry (terminal + tap), no mic needed |
+| `log_daemon.py` | Python | ~476 | Perekam data pasif ke CSV (percakapan, waktu respons, status sistem), rotasi harian, psutil opsional |
 
 ---
 
 ## Cara Menjalankan
 
-1. **Jalankan LM Studio** di port 1234 dengan Qwen3.5 9B (model vision)
+1. **Jalankan LM Studio** di port 1234 dengan model vision (mis. Qwen VL)
 2. **Jalankan server utama:**
    ```bash
    python src/server_vision.py
@@ -798,7 +836,11 @@ Thread Safety:
    python src/audio_inference.py
    ```
 4. **Buka HP ke:** `http://<IP_PC>:8080`
-5. Atau **mode hybrid (tanpa HP):**
+5. **(Opsional) Jalankan perekam data:**
+   ```bash
+   python src/log_daemon.py
+   ```
+6. Atau **mode hybrid (tanpa HP):**
    ```bash
    python src/hybrid_inference.py
    ```
