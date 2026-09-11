@@ -246,7 +246,7 @@ python src/audio_inference.py > logs/audio.log 2>&1
 
 ## Keamanan
 
-**Peringatan:** Sistem ini didesain untuk penggunaan personal di jaringan lokal.
+**Peringatan:** Sistem ini didesain untuk penggunaan personal di jaringan lokal tepercaya. Server tidak memiliki autentikasi. Jangan membuka atau meneruskan port `8080` ke internet karena endpoint kamera, audio, log, dan kontrol dapat diakses oleh klien pada jaringan yang dapat menjangkau server.
 
 - **Bind ke LAN saja**: Set `SERVER_HOST=192.168.1.10` (IP lokal) untuk mencegah akses dari jaringan luar
 - **Path traversal**: Endpoint `/trigger_tts` sudah memiliki validasi path traversal

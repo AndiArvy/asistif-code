@@ -1,257 +1,223 @@
-# Remote AC Assistive System for the Blind
+# Adaptive Voice Guidance for Unfamiliar AC Remotes
 
-> Sistem asisten berbasis AI yang membantu penyandang tunanetra mengoperasikan **remote AC fisik** melalui perintah suara, navigasi taktil (panduan jempol), dan umpan balik suara — cukup dengan sebuah HP dan sebuah PC.
-
-<p align="left">
-  <img alt="Python" src="https://img.shields.io/badge/python-3.10%E2%80%933.12-blue.svg">
-  <img alt="License" src="https://img.shields.io/badge/license-MIT-green.svg">
-  <img alt="Platform" src="https://img.shields.io/badge/platform-Windows%20%7C%20Linux%20%7C%20macOS-lightgrey.svg">
-  <img alt="CUDA" src="https://img.shields.io/badge/GPU-CUDA%2012.x-76B900.svg">
+<p align="center">
+  <img src="docs/images/readme/hero-assistive-ai.png" alt="Ilustrasi sistem AI asistif yang mengenali remote AC dan memandu pengguna melalui suara" width="100%">
 </p>
 
----
+<p align="center">
+  <strong>Sistem AI multimodal lokal yang membantu pengguna tunanetra menemukan dan mengoperasikan tombol pada remote AC yang belum dikenal.</strong>
+</p>
 
-## Daftar Isi
+<p align="center">
+  <a href="#hasil-terukur">Hasil</a> ·
+  <a href="#cara-kerja">Cara Kerja</a> ·
+  <a href="#kontribusi-dan-skill-yang-diterapkan">Kontribusi</a> ·
+  <a href="#menjalankan-proyek">Menjalankan Proyek</a> ·
+  <a href="docs/ARSITEKTUR_SISTEM.md">Dokumentasi Teknis</a>
+</p>
 
-- [Ringkasan](#ringkasan)
-- [Cara Kerja](#cara-kerja)
-- [Fitur Utama](#fitur-utama)
-- [Arsitektur](#arsitektur)
-- [Persyaratan Sistem](#persyaratan-sistem)
-- [Instalasi](#instalasi)
-- [Menjalankan Sistem](#menjalankan-sistem)
-- [Panduan Cepat Penggunaan](#panduan-cepat-penggunaan)
-- [Konfigurasi (Environment Variables)](#konfigurasi-environment-variables)
-- [Perekaman Data (Log Daemon)](#perekaman-data-log-daemon)
-- [Struktur Proyek](#struktur-proyek)
-- [Dokumentasi Lengkap](#dokumentasi-lengkap)
-- [Troubleshooting](#troubleshooting)
-- [Lisensi](#lisensi)
+<p align="center">
+  <img alt="Python 3.10–3.12" src="https://img.shields.io/badge/Python-3.10%E2%80%933.12-3776AB?logo=python&logoColor=white">
+  <img alt="Computer Vision" src="https://img.shields.io/badge/Computer_Vision-YOLO_OBB_%2B_OWLv2-00A67E">
+  <img alt="Vision Language Model" src="https://img.shields.io/badge/VLM-Qwen3.5_9B-7B61FF">
+  <img alt="WebRTC" src="https://img.shields.io/badge/Realtime-WebRTC_%2B_WebSocket-FF6F00">
+  <img alt="License MIT" src="https://img.shields.io/badge/License-MIT-green">
+</p>
 
----
+## Tentang proyek
 
-## Ringkasan
+Tombol remote AC umumnya tidak memiliki penanda taktil dan susunannya berbeda antarmerek. Proyek tugas akhir ini mengubah smartphone menjadi antarmuka asistif: kamera mengenali remote dan posisi ibu jari, mikrofon menerima perintah, lalu sistem memberi instruksi suara adaptif hingga pengguna mencapai tombol yang dituju.
 
-Penyandang tunanetra kesulitan mengoperasikan remote AC karena tombol fisiknya seragam dan tidak berlabel Braille. Sistem ini menjembatani hal tersebut: pengguna cukup mengarahkan kamera HP ke remote, lalu **berbicara** untuk meminta bantuan. Sistem akan memetakan tombol secara otomatis, memandu jempol pengguna ke tombol yang tepat lewat instruksi suara, dan mengonfirmasi secara otomatis saat jempol menyentuh tombol yang benar.
+Saya merancang dan mengimplementasikan pipeline lengkapnya, mulai dari komunikasi real-time smartphone–PC, deteksi objek berorientasi, ekstraksi tombol secara zero-shot, pemetaan fungsi dengan Vision-Language Model (VLM), transkripsi suara, hingga mekanisme *background monitoring* yang mengonfirmasi target secara otomatis. Seluruh inferensi utama berjalan di PC lokal sehingga data kamera dan percakapan tidak perlu dikirim ke layanan AI cloud.
 
-Semua pemrosesan AI (deteksi, STT, reasoning, TTS) berjalan **lokal di PC** — privasi terjaga dan tidak perlu langganan API cloud.
+> **Tugas akhir:** *Pengembangan Sistem Instruksi Suara Adaptif Berbasis LLM-Vision Reasoning untuk Membantu Tunanetra Mengoperasikan Remote AC yang Belum Dikenal* - **M. Andi Abdillah**, Teknik Elektro, Institut Teknologi Sepuluh Nopember.
 
-## Cara Kerja
+## Hasil terukur
 
+| Area | Hasil | Apa yang diukur |
+|---|---:|---|
+| Deteksi remote & ibu jari | **0,995 mAP@0.5** | YOLO26n OBB pada data validasi |
+| Ekstraksi tombol zero-shot | **722 kandidat / 50 remote** | OWLv2, rata-rata **3,02 detik** |
+| Tugas operasional VLM | **93,2% akurasi** | Qwen3.5 9B INT4, penggunaan VRAM **6,7 GB** |
+| Transkripsi suara | **2,33% WER** | Kondisi sunyi; **13,44%** pada kondisi bising |
+| Inferensi STT | **485 ms** | Faster Whisper |
+| Komunikasi real-time | **0,09% packet loss audio** | Streaming WebRTC |
+| Sinyal kontrol | **5,87 ms/perintah** | WebSocket |
+| Evaluasi formatif | **81,1% task completion rate** | 8 partisipan dengan penutup mata; TCT rata-rata **15,9 detik** |
+
+Angka di atas berasal dari pengujian tugas akhir. Evaluasi dengan tiga partisipan tunanetra menunjukkan seluruh 12 tugas yang dicoba akhirnya dapat diselesaikan pada konfigurasi kamera statis, tetapi beberapa percobaan masih memerlukan pengulangan dan bantuan peneliti. Hasil tersebut menunjukkan kelayakan awal, bukan kesimpulan final mengenai pengalaman pengguna pada populasi yang lebih luas.
+
+<p align="center">
+  <img src="docs/images/readme/latency-waterfall.png" alt="Waterfall latensi pipeline visual VLM" width="760">
+  <br>
+  <sub>Rincian latensi pipeline visual VLM pada skenario penalaran.</sub>
+</p>
+
+## Cara kerja
+
+1. Smartphone mengirim video dan audio ke PC melalui WebRTC.
+2. YOLO OBB mendeteksi remote, memperbaiki orientasi citra, dan melacak posisi ibu jari.
+3. OWLv2 mengekstrak kandidat tombol tanpa model khusus untuk setiap merek remote.
+4. Qwen3.5 9B memetakan indeks tombol ke fungsi visual dan memahami perintah pengguna.
+5. Faster Whisper mentranskripsikan perintah *hold-to-speak*.
+6. Sistem memberi arah melalui TTS; monitor latar belakang memeriksa posisi jempol setiap 500 ms dan mengonfirmasi saat target tercapai.
+
+<p align="center">
+  <img src="docs/images/readme/system-architecture.png" alt="Arsitektur client-server sistem asistif" width="900">
+  <br>
+  <sub>Arsitektur client–server: smartphone sebagai sensor dan antarmuka, PC sebagai server komunikasi dan AI.</sub>
+</p>
+
+## Dari citra menjadi panduan suara
+
+<table>
+  <tr>
+    <td width="50%" align="center">
+      <img src="docs/images/readme/mobile-interface.png" alt="Antarmuka smartphone dengan kamera, hold-to-speak, dan log percakapan" width="310"><br>
+      <sub><strong>Antarmuka aksesibel</strong><br>Kamera, hold-to-speak, kontrol senter, haptic feedback, dan riwayat instruksi.</sub>
+    </td>
+    <td width="50%" align="center">
+      <img src="docs/images/readme/button-indexing.png" alt="Remote AC sebelum dan sesudah tombol diberi indeks" width="430"><br>
+      <sub><strong>Representasi spasial</strong><br>Remote dinormalisasi, tombol dideteksi, lalu setiap kandidat diberi indeks untuk dipetakan oleh VLM.</sub>
+    </td>
+  </tr>
+</table>
+
+Contoh interaksi:
+
+```text
+Pengguna : "Bantu saya menyalakan AC."
+Sistem   : "Tombol power berada di kanan atas. Geser jempol sedikit ke kiri atas."
+Monitor  : mendeteksi jempol mencapai target
+Sistem   : "Nah, itu tombolnya. Silakan tekan."
 ```
-1. Pengguna arahkan kamera HP ke remote AC
-2. Sistem otomatis mendeteksi & memetakan tombol (YOLO OBB + OWL-ViT + VLM)
-3. Pengguna tekan-tahan layar HP → ucapkan perintah → lepas ("Cari tombol power")
-4. Whisper mengubah suara menjadi teks → VLM menyusun panduan arah
-5. Sistem memandu jempol via suara ("Geser ke kanan atas...")
-6. Background monitor mendeteksi sentuhan → auto-konfirmasi ("Nah, itu tombolnya")
-7. Pengguna menekan tombol fisik
+
+## Kontribusi dan skill yang diterapkan
+
+| Kompetensi | Implementasi dalam proyek |
+|---|---|
+| **Computer Vision** | Membuat dataset kustom, melatih YOLO OBB untuk remote dan ibu jari, koreksi orientasi, stabilisasi frame, serta ekstraksi tombol zero-shot dengan OWLv2. |
+| **Vision-Language Model** | Merancang prompt terstruktur, representasi tombol berindeks, pemetaan fungsi tombol, klasifikasi intent, dan reasoning navigasi spasial. |
+| **Speech AI** | Mengintegrasikan Faster Whisper, VAD, filter derau/halusinasi, TTS ganda, serta cache audio. |
+| **Real-time Systems** | Membangun streaming WebRTC, kanal kontrol WebSocket, server async `aiohttp`, thread pool, locking, dan monitor tugas paralel. |
+| **Accessible Interaction** | Mendesain hold-to-speak, instruksi arah singkat, getaran, bunyi bip, kontrol senter, auto-mute, dan auto-confirm. |
+| **Edge AI & Optimization** | Menjalankan model lokal, memakai quantization INT4, lazy loading singleton, jalur rule-based <1 ms, dan pengelolaan VRAM. |
+| **Research & Evaluation** | Menyusun metrik model, pengujian jaringan dan latensi, evaluasi tugas pengguna, logging CSV, serta analisis keterbatasan. |
+| **Software Engineering** | Memisahkan sistem menjadi modul vision, audio, transport, reasoning, cache, UI, dan observability dengan konfigurasi berbasis environment variable. |
+
+## Keputusan teknis utama
+
+- **YOLO OBB:** orientasi remote ikut diprediksi sehingga citra dapat diluruskan sebelum tombol dianalisis.
+- **OWLv2 + VLM:** sistem dapat menghadapi tata letak remote baru tanpa melatih pendeteksi tombol per merek.
+- **Hybrid rule-based/VLM:** perintah deterministik diproses kurang dari 1 ms, sedangkan VLM dipakai ketika konteks visual atau penalaran diperlukan.
+- **WebRTC + WebSocket:** media tetap real-time, sedangkan event UI, TTS, dan status sistem memakai kanal kontrol terpisah.
+- **Local-first inference:** kamera, suara, dan model diproses pada jaringan lokal melalui PC pengguna.
+
+Dokumentasi alasan desain lainnya tersedia di [Architecture Decision Records](docs/ADRs.md).
+
+## Evaluasi bersama pengguna
+
+Pengujian dilakukan bertahap: verifikasi teknis per subsistem, evaluasi formatif dengan delapan partisipan berpenutup mata, lalu evaluasi eksploratif bersama tiga partisipan tunanetra. Proses ini menghasilkan temuan desain penting, terutama kebutuhan kamera statis, instruksi yang lebih ringkas, dan penanganan pertanyaan relasi spasial yang lebih kuat.
+
+## Arsitektur kode
+
+```text
+src/
+├── server_vision.py       # WebRTC, HTTP API, WebSocket, distribusi TTS
+├── audio_inference.py     # Hold-to-speak, VAD, Faster Whisper
+├── vision_reasoning.py    # Layout, VLM reasoning, navigasi, auto-confirm
+├── rotate_remote.py       # Deteksi OBB, rotasi, dan crop remote
+├── vision_models.py       # Lazy-loading YOLO dan OWLv2
+├── vision_http.py         # HTTP utilities dan thread pool
+├── tts_cache.py           # Cache audio thread-safe
+├── log_daemon.py          # Telemetri percakapan, event, dan resource
+├── hybrid_inference.py    # Mode pengujian melalui terminal
+└── index.html             # Web UI smartphone
 ```
 
-## Fitur Utama
+Dokumentasi lanjutan:
 
-| Fitur | Deskripsi |
-|-------|-----------|
-| 🎙️ **Perintah Suara** | Tekan & tahan layar, bicara, lepas untuk proses (Hold-to-Speak + Faster-Whisper STT) |
-| 🧭 **Navigasi Taktil** | Panduan arah jempol ke tombol dengan deteksi real-time (YOLO OBB) |
-| 🔍 **Deteksi Tombol Otomatis** | Zero-shot detection (OWL-ViT) + pemetaan fungsi via VLM, tanpa training per-remote |
-| 🔊 **Umpan Balik Suara** | TTS ganda: gTTS (online) + Web Speech API (offline, zero server load) |
-| ⚡ **Auto-Confirm** | Background monitor mengonfirmasi otomatis saat jempol menyentuh target |
-| 🗣️ **Perintah Cepat AC** | Intent hardcode ("nyalakan AC", "atur suhu", "ganti mode") tanpa memanggil VLM |
-| 🔦 **Kontrol Senter** | Perintah suara "senter" untuk menyalakan/mematikan lampu HP |
-| 📳 **Haptic & Beep** | Getaran + suara sintetis saat mic aktif/mati dan konfirmasi tombol |
-| 🖥️ **Mode Hybrid** | Input terminal untuk testing tanpa HP |
-| 📊 **Log Daemon** | Perekam data (percakapan, waktu respons, status sistem) ke CSV untuk riset/evaluasi |
+- [Arsitektur sistem](docs/ARSITEKTUR_SISTEM.md)
+- [Referensi API](docs/API.md)
+- [Panduan deployment](docs/DEPLOYMENT.md)
+- [Panduan pengembangan](docs/DEVELOPMENT.md)
+- [Panduan pengguna](docs/USER_GUIDE.md)
+- [Architecture Decision Records](docs/ADRs.md)
 
-## Arsitektur
+## Menjalankan proyek
 
-```
-┌─────────────────────┐         ┌──────────────────────────────────────────┐
-│   HP (Browser)      │ WebRTC  │            Server PC (port 8080)           │
-│                     │◄───────►│                                            │
-│  Kamera + Mic       │         │  ├── YOLO OBB      (deteksi remote+jempol) │
-│  Speaker            │         │  ├── OWL-ViT       (deteksi tombol)        │
-│  Web Speech API     │         │  ├── Faster-Whisper (speech-to-text)       │
-│  Hold-to-Speak UI   │         │  └── gTTS          (text-to-speech)        │
-└─────────────────────┘         │                                            │
-                                │        │ HTTP (OpenAI-compatible)          │
-                                │        ▼                                   │
-                                │  LM Studio / VLM (port 1234)               │
-                                └──────────────────────────────────────────┘
-```
+### Persyaratan
 
-Detail lengkap: [`docs/ARSITEKTUR_SISTEM.md`](docs/ARSITEKTUR_SISTEM.md).
+- Python 3.10–3.12
+- Smartphone dengan browser modern dan PC pada jaringan Wi-Fi/LAN yang sama
+- LM Studio dengan model vision yang menyediakan API OpenAI-compatible pada port `1234`
+- GPU NVIDIA direkomendasikan; konfigurasi penelitian memakai CUDA 12.x
 
-## Persyaratan Sistem
-
-| Komponen | Minimum | Direkomendasikan |
-|----------|---------|------------------|
-| **Python** | 3.10 | 3.10 – 3.12 |
-| **GPU** | NVIDIA GTX 1060 6GB | NVIDIA RTX 3060 12GB+ |
-| **RAM** | 16 GB | 32 GB |
-| **CUDA** | 12.x (atau CPU-only) | 12.6 |
-| **LM Studio** | v0.3+ dengan model vision (mis. Qwen VL) di port 1234 | — |
-| **HP** | Android/iOS, browser Chrome 120+ / Safari 17+ | — |
-| **Jaringan** | HP & PC di Wi-Fi/LAN yang sama | — |
-
-> Total kebutuhan VRAM ~14–18 GB saat semua model aktif. Lihat [`docs/DEPLOYMENT.md`](docs/DEPLOYMENT.md) untuk optimasi pada GPU lebih kecil.
-
-## Instalasi
-
-### 1. Clone repository
+### Instalasi
 
 ```bash
 git clone https://github.com/AndiArvy/asistif-code.git
 cd asistif-code
-```
-
-### 2. Buat virtual environment
-
-```bash
 python -m venv venv
-source venv/bin/activate      # Linux/macOS
-venv\Scripts\activate         # Windows
 ```
 
-### 3. Instal dependensi
+Aktifkan virtual environment:
 
 ```bash
-pip install --upgrade pip
+# Windows
+venv\Scripts\activate
+
+# Linux/macOS
+source venv/bin/activate
+```
+
+Instal dependensi:
+
+```bash
+python -m pip install --upgrade pip
 pip install -r requirements.txt
 ```
 
-> **Catatan GPU/PyTorch:** `requirements.txt` sudah dikonfigurasi untuk **CUDA 12.6** (`torch==2.12.0+cu126`) melalui `--extra-index-url`. Untuk versi CUDA lain atau CPU-only, ubah URL dan pin torch di bagian atas `requirements.txt` sesuai petunjuk komentar di sana (`cu124`, `cu128`, atau `cpu`).
+`requirements.txt` memakai wheel PyTorch CUDA 12.6. Petunjuk untuk CUDA lain dan CPU-only tersedia sebagai komentar di dalam file tersebut.
 
-### 4. Siapkan model AI
+### Menjalankan sistem
 
-| Model | Cara Menyiapkan |
-|-------|-----------------|
-| **YOLO OBB** (`best.pt`) | Sudah disertakan di root project (atau set env `YOLO_MODEL_PATH`). Harus mendukung Oriented Bounding Box. |
-| **LM Studio (VLM)** | Unduh model vision (mis. Qwen VL), jalankan API server di port **1234**, aktifkan CORS. |
-| **OWL-ViT** | Diunduh otomatis dari HuggingFace saat pertama dijalankan. |
-| **Faster-Whisper** | Diunduh otomatis saat pertama dijalankan. |
-
-## Menjalankan Sistem
-
-Jalankan setiap perintah di terminal terpisah:
+Buka dua terminal setelah API LM Studio aktif:
 
 ```bash
-# Terminal 1 — Server WebRTC + HTTP + TTS
+# Terminal 1 - server media dan komunikasi
 python src/server_vision.py
 
-# Terminal 2 — Speech-to-Text + VLM reasoning
+# Terminal 2 - transkripsi dan reasoning
 python src/audio_inference.py
-
-# Terminal 3 (opsional) — Perekam data untuk riset/evaluasi
-python src/log_daemon.py
 ```
 
-Pastikan **LM Studio** sudah menjalankan API server di port 1234 dengan model vision termuat.
+Kemudian buka `http://<IP_PC>:8080` pada smartphone dan izinkan akses kamera serta mikrofon.
 
-Di **HP**, buka browser ke `http://<IP_PC>:8080`, lalu izinkan akses kamera & mikrofon.
-
-### Mode Hybrid (tanpa HP)
-
-Untuk testing/debugging dari terminal PC tanpa HP:
+Untuk merekam data evaluasi atau menjalankan mode terminal:
 
 ```bash
+# Opsional: observability dan log CSV
+python src/log_daemon.py
+
+# Alternatif: pengujian tanpa smartphone
 python src/hybrid_inference.py
 ```
 
-## Panduan Cepat Penggunaan
+Konfigurasi lengkap, kebutuhan VRAM, dan troubleshooting tersedia di [panduan deployment](docs/DEPLOYMENT.md).
 
-1. Letakkan remote AC di depan kamera HP dengan posisi jelas (isi 40–80% frame).
-2. Tunggu sistem memetakan tombol otomatis (~5–15 detik) — akan ada konfirmasi suara.
-3. Tekan & tahan layar HP → ucapkan perintah (mis. *"Cari tombol power"*) → lepas.
-4. Ikuti panduan arah suara sambil menggeser jempol perlahan di atas remote.
-5. Sistem otomatis mengonfirmasi saat jempol menyentuh tombol yang benar.
-6. Tekan tombol fisik untuk mengeksekusi.
+> **Keamanan jaringan:** server tidak menyediakan autentikasi dan ditujukan hanya untuk jaringan lokal tepercaya. Jangan meneruskan port `8080` ke internet. Lihat [kebijakan keamanan](SECURITY.md) sebelum deployment.
 
-Panduan lengkap untuk pengguna akhir: [`docs/USER_GUIDE.md`](docs/USER_GUIDE.md).
+## Status dan batasan
 
-## Konfigurasi (Environment Variables)
+Proyek ini merupakan prototipe riset. Performa dipengaruhi pencahayaan, kestabilan kamera, kemiripan ikon, dan posisi tangan. Dataset pengguna masih terbatas, sehingga hasil evaluasi perlu dilanjutkan dengan lebih banyak partisipan tunanetra dan penggunaan longitudinal sebelum sistem digunakan sebagai produk asistif sehari-hari.
 
-| Variabel | Default | Deskripsi |
-|----------|---------|-----------|
-| `SERVER_HOST` | `0.0.0.0` | Host binding server |
-| `SERVER_PORT` | `8080` | Port server |
-| `JPEG_QUALITY` | `99` | Kualitas JPEG frame video |
-| `TTS_PLAYBACK_RATE` | `1.2` | Kecepatan playback TTS |
-| `WHISPER_MODEL_SIZE` | `deepdml/faster-whisper-large-v3-turbo-ct2` | Model Whisper |
-| `WHISPER_DEVICE` | `cuda` | Device Whisper (`cuda`/`cpu`) |
-| `WHISPER_COMPUTE_TYPE` | `int8_float16` | Compute type Whisper |
-| `WHISPER_CPU_THREADS` | `8` | CPU threads untuk Whisper |
-| `WHISPER_BEAM_SIZE` | `1` | Beam size Whisper |
-| `WHISPER_BEST_OF` | `1` | Best-of candidates Whisper |
-| `WHISPER_MIN_SILENCE_MS` | `500` | Min silence duration untuk VAD |
-| `YOLO_MODEL_PATH` | `best.pt` | Path model YOLO |
-| `YOLO_CONF_THRESHOLD` | `0.3` | Confidence threshold YOLO |
-| `YOLO_FORCE_PORTRAIT` | `true` | Paksa output portrait |
-| `YOLO_INVERT_OBB_ANGLE` | `false` | Balik arah rotasi OBB |
-| `OWL_MODEL_NAME` | `google/owlv2-base-patch16-ensemble` | Model OWL-ViT |
-| `VISION_DEBUG` | `true` | Simpan debug images |
-| `MAX_CONVERSATION_HISTORY` | `20` | Maks riwayat percakapan |
-| `LOG_DIR` | `logs` | Folder output log daemon |
-| `LOG_POLL_INTERVAL` | `1` | Interval poll status sistem (detik) |
+## Tentang pengembang
 
-## Perekaman Data (Log Daemon)
+Saya **M. Andi Abdillah**, mahasiswa Teknik Elektro ITS dengan minat pada robotics, artificial intelligence, computer vision, dan intelligent systems. Selain proyek ini, saya pernah menjadi bagian dari tim autonomous surface vessel Barunastra ITS dan mewakili ITS pada kompetisi RoboBoat 2024 dan 2025 di Amerika Serikat.
 
-`src/log_daemon.py` adalah proses opsional yang merekam jalannya sistem untuk keperluan riset/evaluasi (mis. skripsi). Ia terhubung ke WebSocket server (`/frontend_ws`, `/command_feed`) sebagai pengamat pasif dan menulis tiga file CSV per hari ke folder `logs/`:
-
-| File | Isi |
-|------|-----|
-| `conversation_YYYY-MM-DD.csv` | Percakapan per sesi + waktu STT, reasoning, dan total respons |
-| `system_status_YYYY-MM-DD.csv` | Snapshot status sistem periodik (layout ready, busy, CPU/memori) |
-| `events_YYYY-MM-DD.csv` | Semua event mentah (hold-to-speak, STT, response, error) |
-
-Monitoring CPU/memori memerlukan `psutil` (opsional — dinonaktifkan otomatis jika tidak terpasang). Log daemon tidak memengaruhi jalannya sistem utama; jalankan hanya bila Anda perlu mengumpulkan data.
-
-## Struktur Proyek
-
-```
-code2/
-├── src/
-│   ├── server_vision.py      # Server WebRTC, HTTP API, TTS, WebSocket
-│   ├── audio_inference.py    # STT Whisper + Hold-to-Speak + trigger VLM
-│   ├── vision_reasoning.py   # Pipeline vision, VLM reasoning, task monitor
-│   ├── index.html            # Frontend HP (WebRTC, Hold-to-Speak, Web Speech)
-│   ├── rotate_remote.py      # Rotasi & crop remote via YOLO OBB
-│   ├── vision_models.py      # Lazy-loading model YOLO + OWL-ViT (singleton)
-│   ├── vision_http.py        # Utilitas HTTP (LM Studio, snapshot, TTS)
-│   ├── tts_cache.py          # Cache TTS lokal (MD5 index)
-│   ├── hybrid_inference.py   # Entry alternatif (terminal + tap)
-│   └── log_daemon.py         # Perekam data ke CSV (opsional)
-├── docs/                     # Dokumentasi lengkap
-├── best.pt                   # Model YOLO OBB (remote + jempol)
-├── requirements.txt          # Dependensi (torch cu126 by default)
-├── LICENSE                   # MIT
-└── README.md
-```
-
-## Dokumentasi Lengkap
-
-| Dokumen | Deskripsi |
-|---------|-----------|
-| [`docs/ARSITEKTUR_SISTEM.md`](docs/ARSITEKTUR_SISTEM.md) | Arsitektur, alur data, dan deskripsi tiap modul |
-| [`docs/API.md`](docs/API.md) | Referensi endpoint HTTP, WebSocket, dan WebRTC |
-| [`docs/DEPLOYMENT.md`](docs/DEPLOYMENT.md) | Panduan deployment produksi & optimasi |
-| [`docs/DEVELOPMENT.md`](docs/DEVELOPMENT.md) | Panduan pengembangan & kontribusi |
-| [`docs/USER_GUIDE.md`](docs/USER_GUIDE.md) | Panduan penggunaan untuk tunanetra |
-| [`docs/ADRs.md`](docs/ADRs.md) | Architecture Decision Records |
-| [`docs/code_review.md`](docs/code_review.md) | Laporan code review |
-
-## Troubleshooting
-
-| Masalah | Solusi Cepat |
-|---------|--------------|
-| **WebRTC gagal konek** | Pastikan HP & PC di jaringan sama; buka port 8080 di firewall; nonaktifkan VPN di HP |
-| **LM Studio connection refused** | Pastikan API server aktif di port 1234; cek `http://localhost:1234/v1/models` |
-| **Tidak ada audio dari mic** | Cek izin mic browser; pastikan mic tidak di-mute OS |
-| **Layout gagal terus** | Pastikan remote fokus & tidak blur; cukup cahaya; dekatkan (isi ≥40% frame) |
-| **GPU out of memory** | Set `WHISPER_COMPUTE_TYPE=int8`; gunakan model VLM lebih kecil; tutup app lain |
-
-Detail lengkap: [`docs/DEPLOYMENT.md`](docs/DEPLOYMENT.md#troubleshooting).
+[GitHub](https://github.com/AndiArvy) · [Dokumentasi teknis proyek](docs/ARSITEKTUR_SISTEM.md)
 
 ## Lisensi
 
-Dirilis di bawah lisensi [MIT](LICENSE).
+Kode dan model kustom dirilis di bawah [MIT License](LICENSE). Status aset dan komponen pihak ketiga dijelaskan dalam [pemberitahuan aset dan model](ASSET_AND_MODEL_NOTICES.md) serta [model card](MODEL_CARD.md).
